@@ -8,7 +8,11 @@ jobs:
   call-build-push:
     uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
     with:
-      image_name: docker/hello-world
-    secrets:
-      DOCKER_USERNAME: admin
-      DOCKER_PASSWORD: y9wb3N0Z3
+      org-name: tex-corver
+      project-name: httpbin
+      docker-build-file: src/apps/httpbin/Dockerfile
+      docker-build-context: src/apps/httpbin
+      port: 80
+      ingress: true
+      ingress-subdomain: httpbin
+      fastapi-root-path: /
