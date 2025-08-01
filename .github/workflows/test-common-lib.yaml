@@ -60,12 +60,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           ssh: default=/home/runner/.ssh/id_ed25519
           tags: ${{ github.repository }}:${{ github.ref_name }}
-  test:
-    runs-on: arc-runner-set
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Run tests in Docker container
         run: |
@@ -73,10 +67,11 @@ jobs:
             --env CONFIG_PATH=/etc/config \
             -v ${{ inputs.config-path }}:/etc/config \
             ${{ github.repository }}:${{ github.ref_name }} \
-            sh -c "pytest"
+            pytest
 
           if [ $? -eq 0 ]; then
             echo "Tests passed"
           else
+            echo "Tests failed"
             exit 1
           fi
