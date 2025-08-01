@@ -1,0 +1,82 @@
+# .github/workflows/test-common-lib.yaml
+name: Common Library Test Workflow
+on:
+  workflow_call:
+    outputs: {}
+    inputs:
+      docker-build-file:
+        required: false
+        type: string
+        default: Dockerfile
+        description: |
+          Relative path from root of repository to the Dockerfile used for building your application image.
+          Useful when you have multiple Dockerfiles or when the Dockerfile is in a subdirectory.
+          Examples: 'Dockerfile', 'docker/Dockerfile', 'src/apps/api/Dockerfile'
+          Default: 'Dockerfile' (in repository root)
+      docker-build-context:
+        required: false
+        type: string
+        default: .
+        description: |
+          Directory path that contains all the files needed to build your Docker image.
+          This determines which files are available during the build process (COPY, ADD commands).
+          Should contain all necessary source code, dependencies, and configuration files.
+          Examples: '.', 'src/apps/schedule-manager', ...
+          Default: '.' (repository root)
+      config-path:
+        required: false
+        type: string
+        default: .ci-config
+        description: |
+          Path to the configuration file used by the application.
+          The file will be mount to `CONFIG_PATH` inside your container when running tests.
+          Read more at `utils.get_config`.
+          Default: '.ci-config' (in repository root)
+
+env:
+  REGISTRY: artifactory-jcr.artifactory-jcr.svc:8081
+
+jobs:
+  build:
+    runs-on: arc-runner-set
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."${{ env.REGISTRY }}"]
+              insecure = true
+              http = true
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.docker-build-context }}
+          file: ${{ inputs.docker-build-file }}
+          push: false
+          platforms: linux/amd64,linux/arm64
+          ssh: default=/home/runner/.ssh/id_ed25519
+          tags: ${{ github.repository }}:${{ github.ref_name }}
+  test:
+    runs-on: arc-runner-set
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests in Docker container
+        run: |
+          docker run --rm \
+            --env CONFIG_PATH=/etc/config \
+            -v ${{ inputs.config-path }}:/etc/config \
+            ${{ github.repository }}:${{ github.ref_name }} \
+            sh -c "pytest"
+
+          if [ $? -eq 0 ]; then
+            echo "Tests passed"
+          else
+            exit 1
+          fi
