@@ -59,14 +59,14 @@ jobs:
           push: false
           platforms: linux/amd64,linux/arm64
           ssh: default=/home/runner/.ssh/id_ed25519
-          tags: ${{ github.repository }}:${{ github.ref_name }}
+          tags: ${{ github.repository }}:ci
 
       - name: Run tests in Docker container
         run: |
           docker run --rm \
             --env CONFIG_PATH=/etc/config \
             -v ${{ inputs.config-path }}:/etc/config \
-            ${{ github.repository }}:${{ github.ref_name }} \
+            ${{ github.repository }}:ci \
             pytest
 
           if [ $? -eq 0 ]; then
