@@ -56,7 +56,7 @@ jobs:
         with:
           context: ${{ inputs.docker-build-context }}
           file: ${{ inputs.docker-build-file }}
-          push: false
+          load: true
           platforms: linux/amd64,linux/arm64
           ssh: default=/home/runner/.ssh/id_ed25519
           tags: ${{ github.repository }}:ci
