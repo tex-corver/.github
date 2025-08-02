@@ -63,7 +63,7 @@ jobs:
       
       - name: Prepare configuration
         run: |
-          docker create volume config
+          docker volume create config
           docker container create --name alpine -v config:/etc/config alpine:latest
           docker cp ${{ inputs.config-path }}/. alpine:/etc/config
       - name: Run tests in Docker container
