@@ -2,8 +2,6 @@ name: Example Usage of Docker Build and Push Workflow
 
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
 jobs:
   call-build-push:
     uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master

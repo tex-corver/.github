@@ -188,32 +188,51 @@ jobs:
   deploy-on-dev:
     runs-on: arc-runner-set
     needs: build-image
-    # env:
-    #   INGRESS_HOST: ${{ inputs.ingress-subdomain != '' && format('{0}.texcorver.com', inputs.ingress-subdomain) || 'texcorver.com' }}
     steps:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         id: install
-      - name: Verify namespace
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Read SSH key from file
+        id: read-ssh-key
+        run: echo "ssh-key=$(cat /home/runner/.ssh/id_ed25519)" >> $GITHUB_OUTPUT
+      - name: Checkout manifests repository
+        uses: actions/checkout@v4
+        with:
+          repository: tex-corver/DeployConfigRepo
+          ssh-key: ${{ steps.read-ssh-key.outputs.ssh-key }}
+          path: ../DeployConfigRepo
+      - name: Create directory structure
         run: |
-          kubectl apply -f - <<EOF
+          mkdir -p ../DeployConfigRepo/templates/${{ inputs.org-name }}
+          echo    "../DeployConfigRepo/templates/${{ inputs.org-name }} is available"
+          mkdir -p ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}
+          echo    "../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }} is available"
+
+      - name: Create namespace
+        run: |
+          cat > ../DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml <<EOF
           apiVersion: v1
           kind: Namespace
           metadata:
             name: ${{ inputs.org-name }}
           EOF
-          echo "Namespace ${{ inputs.org-name }} is ready"
-      - name: Checkout code
-        uses: actions/checkout@v4
+          echo "Namespace manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml"
+
       - name: Update secret config
         run: |
           kubectl create secret generic ${{ inputs.project-name }}-config \
             --from-file '${{ inputs.config-path }}' \
-            -n ${{ inputs.org-name }} --dry-run=client -o yaml | kubectl apply -f -
+            -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
+            ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
 
-      - name: Deploy to development
+          echo "Secret manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
+
+      - name: Update Application
         run: |
-          kubectl apply -f - <<'EOF'
+          cat > ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml <<'EOF'
           apiVersion: argoproj.io/v1alpha1
           kind: Application
           metadata:
@@ -278,8 +297,34 @@ jobs:
                   maxDuration: 3m
             revisionHistoryLimit: 3
           EOF
-          echo "Deployment to development completed"
+          echo "ArgoCD Application manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
 
+
+      - name: Commit and push manifest files
+        run: |
+          cd ../DeployConfigRepo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Deploy ${{ env.IMAGE_NAME }} - Update manifests for ${{ inputs.project-name }}" || echo "No changes to commit"
+          git push origin master
+          echo "Manifest files committed and pushed successfully"
+      - name: Sync application
+        run: |
+          cat > /tmp/patch.yaml <<'EOF'
+          operation:
+            initiatedBy:
+              username: github-actions
+            sync:
+              prune: true
+              syncOptions:
+                - CreateNamespace=true
+                - PrunePropagationPolicy=foreground
+                - PruneLast=true
+                - ApplyOutOfSyncOnly=true
+          EOF
+          kubectl patch -n argocd app applications --patch-file /tmp/patch.yaml --type merge
+          kubectl patch -n argocd app ${{ env.IMAGE_NAME }} --patch-file /tmp/patch.yaml --type merge
   verify-deployment:
     runs-on: arc-runner-set
     needs: deploy-on-dev
