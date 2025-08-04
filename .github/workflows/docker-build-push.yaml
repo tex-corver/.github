@@ -322,11 +322,13 @@ jobs:
                 - ApplyOutOfSyncOnly=true
           EOF
           kubectl patch -n argocd app applications --patch-file /tmp/patch.yaml --type merge
+          sleep 2
           until [[ $(kubectl get application applications -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
             echo "Waiting for applications to sync..."
             sleep 2
           done
           kubectl patch -n argocd app ${{ env.IMAGE_NAME }} --patch-file /tmp/patch.yaml --type merge
+          sleep 2
           until [[ $(kubectl get application ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
             echo "Waiting for applications to sync..."
             sleep 2
