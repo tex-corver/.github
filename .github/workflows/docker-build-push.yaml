@@ -198,10 +198,9 @@ jobs:
       - name: Read SSH key from file
         id: read-ssh-key
         run: |
-          # echo "::add-mask::$(cat /home/runner/.ssh/id_ed25519)"
-          echo "ssh_key<<EOF" >> $GITHUB_OUTPUT
-          cat /home/runner/.ssh/id_ed25519 >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
+          cat /home/runner/.ssh/id_ed25519 >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Checkout manifests repository
         uses: actions/checkout@v4
