@@ -197,12 +197,16 @@ jobs:
         uses: actions/checkout@v4
       - name: Read SSH key from file
         id: read-ssh-key
-        run: echo "ssh-key=$(cat /home/runner/.ssh/id_ed25519)" >> $GITHUB_OUTPUT
+        run: |
+          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
+          cat /home/runner/.ssh/id_ed25519 >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
       - name: Checkout manifests repository
         uses: actions/checkout@v4
         with:
           repository: tex-corver/DeployConfigRepo
-          ssh-key: ${{ steps.read-ssh-key.outputs.ssh-key }}
+          ssh-key: ${{ env.SSH_KEY }}
           path: ../DeployConfigRepo
       - name: Create directory structure
         run: |
