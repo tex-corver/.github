@@ -195,48 +195,41 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Read SSH key from file
-        id: read-ssh-key
-        run: |
-          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
-          cat /home/runner/.ssh/id_ed25519 >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
 
-      - name: Checkout manifests repository
-        uses: actions/checkout@v4
-        with:
-          repository: tex-corver/DeployConfigRepo
-          ssh-key: ${{ steps.read-ssh-key.outputs.ssh-key }}
-          path: DeployConfigRepo
+      - name: Clone DeployConfigRepo
+        run: | 
+          git clone git@github.com:tex-corver/DeployConfigRepo.git ../DeployConfigRepo
+          echo "../DeployConfigRepo"
+
       - name: Create directory structure
         run: |
-          mkdir -p DeployConfigRepo/templates/${{ inputs.org-name }}
-          echo    "DeployConfigRepo/templates/${{ inputs.org-name }} is available"
-          mkdir -p DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}
-          echo    "DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }} is available"
+          mkdir -p ../DeployConfigRepo/templates/${{ inputs.org-name }}
+          echo    "../DeployConfigRepo/templates/${{ inputs.org-name }} is available"
+          mkdir -p ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}
+          echo    "../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }} is available"
 
       - name: Create namespace
         run: |
-          cat > DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml <<EOF
+          cat > ../DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml <<EOF
           apiVersion: v1
           kind: Namespace
           metadata:
             name: ${{ inputs.org-name }}
           EOF
-          echo "Namespace manifest written to DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml"
+          echo "Namespace manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml"
 
       - name: Update secret config
         run: |
           kubectl create secret generic ${{ inputs.project-name }}-config \
             --from-file '${{ inputs.config-path }}' \
             -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
-            DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
+            ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
 
-          echo "Secret manifest written to DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
+          echo "Secret manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
 
       - name: Update Application
         run: |
-          cat > DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml <<'EOF'
+          cat > ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml <<'EOF'
           apiVersion: argoproj.io/v1alpha1
           kind: Application
           metadata:
@@ -301,12 +294,12 @@ jobs:
                   maxDuration: 3m
             revisionHistoryLimit: 3
           EOF
-          echo "ArgoCD Application manifest written to DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
+          echo "ArgoCD Application manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
 
 
       - name: Commit and push manifest files
         run: |
-          cd DeployConfigRepo
+          cd ../DeployConfigRepo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
