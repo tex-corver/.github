@@ -14,3 +14,4 @@ jobs:
       ingress: true
       ingress-subdomain: httpbin
       tag: dev
+      test-command: echo "0"
