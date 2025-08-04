@@ -307,6 +307,7 @@ jobs:
           git push origin master
           echo "Manifest files committed and pushed successfully"
       - name: Sync application
+        timeout-minutes: 3
         run: |
           cat > /tmp/patch.yaml <<'EOF'
           operation:
@@ -321,7 +322,15 @@ jobs:
                 - ApplyOutOfSyncOnly=true
           EOF
           kubectl patch -n argocd app applications --patch-file /tmp/patch.yaml --type merge
+          until [[ $(kubectl get application applications -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
+            echo "Waiting for applications to sync..."
+            sleep 2
+          done
           kubectl patch -n argocd app ${{ env.IMAGE_NAME }} --patch-file /tmp/patch.yaml --type merge
+          until [[ $(kubectl get application ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
+            echo "Waiting for applications to sync..."
+            sleep 2
+          done
   verify-deployment:
     runs-on: arc-runner-set
     needs: deploy-on-dev
