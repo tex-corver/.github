@@ -32,6 +32,16 @@ on:
           The file will be mount to `CONFIG_PATH` inside your container when running tests.
           Read more at `utils.get_config`.
           Default: '.ci-config' (in repository root)
+      create-pr:
+        required: false
+        type: boolean
+        default: true
+        description: |
+          Whether to create a pull request to merge the changes into the `master` branch after deployment.
+          Useful for development workflows where you want to review changes before merging.
+          If false, the workflow will not create a PR, but the deployment will still proceed.
+          Ignored if the workflow is triggered on `master` branch.
+          Default: true
 
 env:
   REGISTRY: artifactory-jcr.artifactory-jcr.svc:8081
@@ -80,3 +90,75 @@ jobs:
             echo "Tests failed"
             exit 1
           fi
+  create-pr-to-master:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' && inputs.create-pr
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN || github.token }}
+      
+      - name: Create Pull Request
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const head = '${{ github.ref_name }}';
+            const base = 'master';
+            
+            // Check if PR already exists
+            const existingPRs = await github.rest.pulls.list({
+              owner,
+              repo,
+              head: `${owner}:${head}`,
+              base,
+              state: 'open'
+            });
+            
+            if (existingPRs.data.length > 0) {
+              console.log(`Pull request already exists: ${existingPRs.data[0].html_url}`);
+              const existingPR = existingPRs.data[0];
+              // Create a comment on the existing PR
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existingPR.number,
+                body: `This pull request has already been created for the latest changes. Please review the existing PR: ${existingPR.html_url}`
+              });
+              return;
+            }
+            
+            // Create the pull request
+            const pr = await github.rest.pulls.create({
+              owner,
+              repo,
+              title: 'Merge ${{ github.ref_name }} into master',
+              head,
+              base,
+              body: `## Deployment Summary
+
+            - **Branch**: ${{ github.ref_name }}
+            - **Commit**: ${{ github.sha }}
+            
+            ## Verification
+            - ✅ Tests passed
+
+            Ready to merge!`
+            });
+            
+            console.log(`Pull request created: ${pr.data.html_url}`);
+            
+            // Assign reviewer
+            await github.rest.pulls.requestReviewers({
+              owner,
+              repo,
+              pull_number: pr.data.number,
+              reviewers: ['duchuyvp', 'texcorver']
+            });
+            
+            console.log('Reviewer assigned successfully');
+  
+
