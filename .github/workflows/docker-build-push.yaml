@@ -250,7 +250,8 @@ jobs:
 
       - name: Update Application
         run: |
-          cat > ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml <<'EOF'
+          file_path="../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
+          cat > "$file_path" <<'EOF'
           apiVersion: argoproj.io/v1alpha1
           kind: Application
           metadata:
@@ -294,7 +295,15 @@ jobs:
                         - secretName: ${{ env.INGRESS_HOST }}-tls
                           hosts:
                             - ${{ env.INGRESS_HOST }}
-                            
+          EOF
+          if [ -n "${{ inputs.env-file }}" ]; then
+            cat >> "$file_path" <<'EOF'
+                    extraEnvFrom:
+                      - secretRef:
+                          name: ${{ inputs.project-name }}-env
+          EOF
+          fi
+          cat >> "$file_path" <<'EOF'
             destination:
               name: in-cluster
               namespace: ${{ inputs.org-name }}
