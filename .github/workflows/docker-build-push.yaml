@@ -118,6 +118,16 @@ on:
           Read more at `utils.get_config`.
           Examples: '.configs', 'src/apps/worker/.configs.sample', ...
           Default: 'README.md'
+      env-file:
+        required: false
+        type: string
+        default: ''
+        description: |
+          Path to the environment file that contains environment variables for your application.
+          This file will be used to set environment variables inside the container.
+          Useful for sensitive information, configuration settings, or runtime parameters.
+          Make sure env-file is in KEY=VALUE format.
+          Examples: '.env.prod'
       create-pr:
         required: false
         type: boolean
@@ -226,6 +236,17 @@ jobs:
             ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
 
           echo "Secret manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
+      - name: Update environment variables
+        run: |
+          if [ -n "${{ inputs.env-file }}" ]; then
+            kubectl create secret generic ${{ inputs.project-name }}-env \
+              --from-env-file='${{ inputs.env-file }}' \
+              -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
+              ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml
+            echo "Environment variables manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
+          else
+            echo "No environment file provided, skipping..."
+          fi
 
       - name: Update Application
         run: |
@@ -273,6 +294,7 @@ jobs:
                         - secretName: ${{ env.INGRESS_HOST }}-tls
                           hosts:
                             - ${{ env.INGRESS_HOST }}
+                            
             destination:
               name: in-cluster
               namespace: ${{ inputs.org-name }}
