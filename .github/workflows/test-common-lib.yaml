@@ -135,7 +135,7 @@ jobs:
             const pr = await github.rest.pulls.create({
               owner,
               repo,
-              title: 'Merge ${{ github.ref_name }} into master',
+              title: 'Merge to master',
               head,
               base,
               body: `## Deployment Summary
@@ -145,7 +145,7 @@ jobs:
             
             ## Verification
             - ✅ Tests passed
-
+            
             Ready to merge!`
             });
             
@@ -161,4 +161,3 @@ jobs:
             
             console.log('Reviewer assigned successfully');
   
-
