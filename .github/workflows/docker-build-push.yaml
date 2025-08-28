@@ -89,24 +89,24 @@ on:
       ingress-subdomain:
         required: false
         type: string
-        default: ''
+        default: ""
         description: |
           Subdomain prefix for your application's public URL. Determines how users will access your app.
           Empty string means the app is accessible at the `texcorver.com`.
           Subsubdomains are also allowed, e.g., 'app1.jannic-ai' → 'https://app1.jannic-ai.texcorver.com'.
           Final URL format: https://{subdomain}?.texcorver.com{root-path}
           Examples: 'pay4me-api' → https://pay4me-api.texcorver.com, '' → https://texcorver.com
-          Only applies when ingress=true. Default: '' 
+          Only applies when ingress=true. Default: ''
       root-path:
         required: false
         type: string
-        default: ''
+        default: ""
         description: |
           URL path prefix where your application will be accessible. Must match your application's routing configuration.
           For other frameworks, I don't know, but for FastAPI apps, this must match the 'root_path' parameter in your FastAPI() constructor.
           Examples: '/api/v1', '/payments', '/auth', '' (for root path)
           Final URL: https://{domain}{root-path}/your-endpoints
-          Default: '' 
+          Default: ''
       config-path:
         required: false
         type: string
@@ -121,13 +121,21 @@ on:
       env-file:
         required: false
         type: string
-        default: ''
+        default: ""
         description: |
           Path to the environment file that contains environment variables for your application.
           This file will be used to set environment variables inside the container.
           Useful for sensitive information, configuration settings, or runtime parameters.
           Make sure env-file is in KEY=VALUE format.
           Examples: '.env.prod'
+      extra-secret-name:
+        required: false
+        type: string
+        description: |
+          Additional secret will be mouted to `extra-secret-path` in your container.
+      extra-secret-path:
+        required: false
+        type: string
       create-pr:
         required: false
         type: boolean
@@ -151,7 +159,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Run tests
         run: |
           echo "Running tests..."
@@ -168,7 +176,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -176,14 +184,14 @@ jobs:
             [registry."${{ env.REGISTRY }}"]
               insecure = true
               http = true
-      
+
       - name: Log in to Docker Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
-      
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -207,7 +215,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Clone DeployConfigRepo
-        run: | 
+        run: |
           git clone git@github.com:tex-corver/DeployConfigRepo.git ../DeployConfigRepo
           echo "../DeployConfigRepo"
 
@@ -303,6 +311,18 @@ jobs:
                           name: ${{ inputs.project-name }}-env
           EOF
           fi
+          if [ -n "${{ inputs.extra-secret-name }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+            cat >> "$file_path" <<'EOF'
+                    extraVolumes:
+                      - name: extra-secret-volume
+                        secret:
+                          secretName: ${{ inputs.extra-secret-name }}
+                    extraVolumeMounts:
+                      - name: extra-secret-volume
+                        mountPath: ${{ inputs.extra-secret-path }}
+                        readOnly: true
+          EOF
+          fi
           cat >> "$file_path" <<'EOF'
             destination:
               name: in-cluster
@@ -326,7 +346,6 @@ jobs:
             revisionHistoryLimit: 3
           EOF
           echo "ArgoCD Application manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
-
 
       - name: Commit and push manifest files
         run: |
@@ -397,7 +416,6 @@ jobs:
       - id: get-output
         run: |
           echo "link=https://${{ env.INGRESS_HOST }}${{ inputs.root-path }}" >> "$GITHUB_OUTPUT"
-          
 
   create-pr-to-master:
     runs-on: ubuntu-latest
@@ -408,7 +426,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN || github.token }}
-      
+
       - name: Create Pull Request
         uses: actions/github-script@v7
         with:
@@ -417,7 +435,7 @@ jobs:
             const { owner, repo } = context.repo;
             const head = '${{ github.ref_name }}';
             const base = 'master';
-            
+
             // Check if PR already exists
             const existingPRs = await github.rest.pulls.list({
               owner,
@@ -426,7 +444,7 @@ jobs:
               base,
               state: 'open'
             });
-            
+
             if (existingPRs.data.length > 0) {
               console.log(`Pull request already exists: ${existingPRs.data[0].html_url}`);
               const existingPR = existingPRs.data[0];
@@ -439,7 +457,7 @@ jobs:
               });
               return;
             }
-            
+
             // Create the pull request
             const pr = await github.rest.pulls.create({
               owner,
@@ -451,18 +469,18 @@ jobs:
 
             - **Branch**: ${{ github.ref_name }}
             - **Commit**: ${{ github.sha }}
-            
+
             ## Verification
             - ✅ Tests passed
             - ✅ Image built and pushed successfully
             - ✅ Deployed to development environment
             - ✅ Deployment verification completed
-            
+
             Ready for production deployment!`
             });
-            
+
             console.log(`Pull request created: ${pr.data.html_url}`);
-            
+
             // Assign reviewer
             await github.rest.pulls.requestReviewers({
               owner,
@@ -470,6 +488,5 @@ jobs:
               pull_number: pr.data.number,
               reviewers: ['duchuyvp', 'texcorver']
             });
-            
+
             console.log('Reviewer assigned successfully');
-  
