@@ -12,6 +12,6 @@ jobs:
       docker-build-context: .
       port: 80
       ingress: true
-      ingress-subdomain: httpbin
+      ingress-domain: httpbin.urieljsc.com
       tag: dev
       test-command: echo "0"

@@ -86,15 +86,15 @@ on:
           Set to false for internal services that don't need external access (e.g., databases, internal APIs).
           When true, creates a secure HTTPS endpoint for your application.
           Default: true
-      ingress-subdomain:
+      ingress-domain:
         required: false
         type: string
         default: ""
         description: |
-          Subdomain prefix for your application's public URL. Determines how users will access your app.
+          Domain prefix for your application's public URL. Determines how users will access your app.
           Empty string means the app is accessible at the `texcorver.com`.
-          Subsubdomains are also allowed, e.g., 'app1.jannic-ai' → 'https://app1.jannic-ai.texcorver.com'.
-          Final URL format: https://{subdomain}?.texcorver.com{root-path}
+          Subdomains are also allowed, e.g., 'app1.jannic-ai' → 'https://app1.jannic-ai.texcorver.com'.
+          Final URL format: https://{domain}?.texcorver.com{root-path}
           Examples: 'pay4me-api' → https://pay4me-api.texcorver.com, '' → https://texcorver.com
           Only applies when ingress=true. Default: ''
       root-path:
@@ -151,7 +151,7 @@ env:
   DOCKER_PASSWORD: y9wb3N0Z3
   DOCKER_USERNAME: admin
   IMAGE_NAME: ${{ inputs.org-name }}-${{ inputs.project-name }}
-  INGRESS_HOST: ${{ inputs.ingress-subdomain != '' && format('{0}.urieljsc.com', inputs.ingress-subdomain) || 'urieljsc.com' }}
+  INGRESS_HOST: ${{ inputs.ingress-domain  }}
 
 jobs:
   run-test:
