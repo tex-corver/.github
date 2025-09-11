@@ -141,10 +141,10 @@ jobs:
 If you specify `ingress: true`, the application will be accessible at:
 
 ```text
-https://{org-name}.texcorver.com{root-path}
+https://{org-name}.urieljsc.com{root-path}
 ```
 
-Example: `https://my-team.texcorver.com/api/v1`
+Example: `https://my-team.urieljsc.com/api/v1`
 
 ## Prerequisites
 

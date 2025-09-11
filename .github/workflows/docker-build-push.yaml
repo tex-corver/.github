@@ -8,7 +8,7 @@ on:
         description: |
           URL to the deployed application in the development environment.
           This link is generated after the deployment is verified and can be used to access the application.
-          Example: https://pay4me-api.texcorver.com
+          Example: https://pay4me-api.urieljsc.com
         value: ${{ jobs.verify-deployment.outputs.link }}
     inputs:
       org-name:
@@ -92,10 +92,10 @@ on:
         default: ""
         description: |
           Domain prefix for your application's public URL. Determines how users will access your app.
-          Empty string means the app is accessible at the `texcorver.com`.
-          Subdomains are also allowed, e.g., 'app1.jannic-ai' → 'https://app1.jannic-ai.texcorver.com'.
-          Final URL format: https://{domain}?.texcorver.com{root-path}
-          Examples: 'pay4me-api' → https://pay4me-api.texcorver.com, '' → https://texcorver.com
+          Empty string means the app is accessible at the `urieljsc.com`.
+          Subdomains are also allowed, e.g., 'app1.jannic-ai' → 'https://app1.jannic-ai.urieljsc.com'.
+          Final URL format: https://{domain}?.urieljsc.com{root-path}
+          Examples: 'pay4me-api' → https://pay4me-api.urieljsc.com, '' → https://urieljsc.com
           Only applies when ingress=true. Default: ''
       root-path:
         required: false
@@ -282,7 +282,7 @@ jobs:
                     configPath: /etc/config
                     configSecret: ${{ inputs.project-name }}-config
                     image:
-                      imageOverride: jcr.texcorver.com/docker/${{ env.IMAGE_NAME }}:${{ inputs.tag }}
+                      imageOverride: jcr.urieljsc.com/docker/${{ env.IMAGE_NAME }}:${{ inputs.tag }}
                       pullPolicy: Always
                     service:
                       port: ${{ inputs.port }}
