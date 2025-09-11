@@ -328,6 +328,11 @@ jobs:
                         rules: []
                     alertmanagerConfig:
                       enabled: ${{ inputs.alertmanager-config }}
+                      route:
+                        receiver: "null"
+                        groupBy: ["namespace", "alertname"]
+                      receivers:
+                        - name: "null"
                     ingress:
                       enabled: ${{ inputs.ingress }}
                       className: nginx
