@@ -136,6 +136,33 @@ on:
       extra-secret-path:
         required: false
         type: string
+      service-monitor:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Whether to create a ServiceMonitor resource for Prometheus monitoring.
+          When enabled, a ServiceMonitor will be created to scrape metrics from your application.
+          Useful for applications that expose Prometheus metrics endpoints.
+          Default: false
+      prometheus-rule:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Whether to create Prometheus alerting rules for your application.
+          When enabled, a set of default alerting rules will be created based on common metrics.
+          Useful for applications that need monitoring and alerting based on specific conditions.
+          Default: false
+      alertmanager-config:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Whether to create an Alertmanager configuration for sending alerts.
+          When enabled, an Alertmanager configuration will be created to manage alerting rules.
+          Useful for applications that need to send alerts based on specific conditions.
+          Default: false
       create-pr:
         required: false
         type: boolean
@@ -288,6 +315,19 @@ jobs:
                       port: ${{ inputs.port }}
                     imagePullSecrets:
                       - name: jcr-image-pull-secret
+                    serviceMonitor:
+                      enabled: ${{ inputs.service-monitor }}
+                      jobLabel: ${{ env.IMAGE_NAME }}
+                      metricRelabelings:
+                        - targetLabel: application_name
+                          replacement: ${{ env.IMAGE_NAME }}
+                    prometheusRule:
+                      enabled: ${{ inputs.prometheus-rule }}
+                      groups:
+                      - name: ${{ env.IMAGE_NAME }}
+                        rules: []
+                    alertmanagerConfig:
+                      enabled: ${{ inputs.alertmanager-config }}
                     ingress:
                       enabled: ${{ inputs.ingress }}
                       className: nginx
@@ -420,7 +460,7 @@ jobs:
   create-pr-to-master:
     runs-on: ubuntu-latest
     needs: [build-image, deploy-on-dev, verify-deployment]
-    if: github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' && inputs.create-pr
+    if: github.event_name == 'push' && github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' && inputs.create-pr
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -433,60 +473,107 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
           script: |
             const { owner, repo } = context.repo;
+
+            // Get the correct head branch name from the push event
             const head = '${{ github.ref_name }}';
             const base = 'master';
 
-            // Check if PR already exists
-            const existingPRs = await github.rest.pulls.list({
-              owner,
-              repo,
-              head: `${owner}:${head}`,
-              base,
-              state: 'open'
-            });
+            console.log(`Event: ${context.eventName}`);
+            console.log(`Attempting to create PR from ${head} to ${base}`);
+            console.log(`Repository: ${owner}/${repo}`);
+            console.log(`Full ref: ${{ github.ref }}`);
 
-            if (existingPRs.data.length > 0) {
-              console.log(`Pull request already exists: ${existingPRs.data[0].html_url}`);
-              const existingPR = existingPRs.data[0];
-              // Create a comment on the existing PR
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: existingPR.number,
-                body: `This pull request has already been created for the latest changes. Please review the existing PR: ${existingPR.html_url}`
-              });
+            // Validate branch names
+            if (head === base) {
+              console.log(`Cannot create PR: head and base branches are the same (${head})`);
               return;
             }
 
-            // Create the pull request
-            const pr = await github.rest.pulls.create({
-              owner,
-              repo,
-              title: 'Deploy ${{ env.IMAGE_NAME }} to production',
-              head,
-              base,
-              body: `## Deployment Summary
+            // Additional validation for merge refs or invalid branch names
+            if (head.includes('/merge') || head.includes('/head')) {
+              console.log(`Invalid head branch name detected: ${head}. This appears to be a merge reference, not a branch name.`);
+              console.log(`This job should only run on push events to feature branches.`);
+              return;
+            }
 
-            - **Branch**: ${{ github.ref_name }}
-            - **Commit**: ${{ github.sha }}
+            try {
+              // Check if PR already exists
+              const existingPRs = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${head}`,
+                base,
+                state: 'open'
+              });
 
-            ## Verification
-            - ✅ Tests passed
-            - ✅ Image built and pushed successfully
-            - ✅ Deployed to development environment
-            - ✅ Deployment verification completed
+              if (existingPRs.data.length > 0) {
+                console.log(`Pull request already exists: ${existingPRs.data[0].html_url}`);
+                const existingPR = existingPRs.data[0];
+                // Create a comment on the existing PR
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: existingPR.number,
+                  body: `🚀 **New Deployment Completed**\n\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nDeployment Link: ${{ needs.verify-deployment.outputs.link }}\n\nThis PR has been updated with the latest changes.`
+                });
+                return;
+              }
 
-            Ready for production deployment!`
-            });
+              // Create the pull request
+              const pr = await github.rest.pulls.create({
+                owner,
+                repo,
+                title: `Deploy ${{ env.IMAGE_NAME }} to production`,
+                head,
+                base,
+                body: `## 🚀 Deployment Summary
 
-            console.log(`Pull request created: ${pr.data.html_url}`);
+              - **Project**: ${{ env.IMAGE_NAME }}
+              - **Branch**: ${{ github.ref_name }}
+              - **Commit**: ${{ github.sha }}
+              - **Deployment Link**: ${{ needs.verify-deployment.outputs.link }}
 
-            // Assign reviewer
-            await github.rest.pulls.requestReviewers({
-              owner,
-              repo,
-              pull_number: pr.data.number,
-              reviewers: ['duchuyvp', 'texcorver']
-            });
+              ## ✅ Verification Status
+              - ✅ Tests passed
+              - ✅ Image built and pushed successfully
+              - ✅ Deployed to development environment
+              - ✅ Deployment verification completed
 
-            console.log('Reviewer assigned successfully');
+              ## 📋 Changes
+              This PR contains the latest changes from the \`${head}\` branch and is ready for production deployment.
+
+              **Auto-generated by GitHub Actions** 🤖`
+              });
+
+              console.log(`Pull request created successfully: ${pr.data.html_url}`);
+
+              // Try to assign reviewers (non-blocking)
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner,
+                  repo,
+                  pull_number: pr.data.number,
+                  reviewers: ['duchuyvp', 'texcorver']
+                });
+                console.log('Reviewers assigned successfully');
+              } catch (reviewerError) {
+                console.log(`Warning: Could not assign reviewers: ${reviewerError.message}`);
+                // Continue without failing the workflow
+              }
+
+            } catch (error) {
+              console.error(`Error creating PR: ${error.message}`);
+              console.error(`Error details:`, error);
+              
+              // Provide helpful debugging information
+              if (error.status === 422) {
+                console.error('422 Error - Possible causes:');
+                console.error('1. Branch protection rules are blocking PR creation');
+                console.error('2. Head and base branches are the same');
+                console.error('3. No commits between head and base branches');
+                console.error('4. Invalid branch names or references');
+                console.error('5. Insufficient permissions');
+              }
+              
+              throw error; // Re-throw to fail the workflow step
+            }
