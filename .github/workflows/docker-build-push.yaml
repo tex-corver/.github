@@ -197,6 +197,8 @@ jobs:
         with:
           virtualenvs-create: false
       - name: Run tests
+        env:
+          GIT_SSH_COMMAND: "ssh -i ~/.ssh/id_ed25519"
         run: |
           echo "Running tests..."
           echo "Using test command: ${{ inputs.test-command }}"
