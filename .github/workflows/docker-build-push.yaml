@@ -186,6 +186,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Make
+        run: sudo apt-get update && sudo apt-get install -y make
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v5
@@ -214,8 +217,6 @@ jobs:
       #     fi
 
       - name: Run tests
-        env:
-          GIT_SSH_COMMAND: "ssh -i ~/.ssh/id_ed25519"
         run: |
           echo "Running tests..."
           echo "Using test command: ${{ inputs.test-command }}"
