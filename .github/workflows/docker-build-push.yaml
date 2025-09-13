@@ -196,6 +196,23 @@ jobs:
         uses: snok/install-poetry@v1
         with:
           virtualenvs-create: false
+      - name: Fix SSH permissions for Git dependencies
+        run: |
+          # Fix SSH directory and file permissions
+          if [ -d ~/.ssh ]; then
+            chmod 700 ~/.ssh
+            chmod 600 ~/.ssh/id_ed25519 2>/dev/null || true
+            chmod 644 ~/.ssh/id_ed25519.pub 2>/dev/null || true
+            chmod 644 ~/.ssh/known_hosts 2>/dev/null || true
+            echo "SSH permissions fixed"
+            
+            # Test SSH connection to GitHub
+            echo "Testing SSH connection to GitHub..."
+            ssh -T git@github.com || echo "SSH connection test completed (exit code $?)"
+          else
+            echo "SSH directory not found, skipping SSH setup"
+          fi
+
       - name: Run tests
         env:
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/id_ed25519"
