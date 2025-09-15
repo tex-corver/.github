@@ -277,44 +277,44 @@ jobs:
 
       - name: Create directory structure
         run: |
-          mkdir -p ../DeployConfigRepo/templates/${{ inputs.org-name }}
-          echo    "../DeployConfigRepo/templates/${{ inputs.org-name }} is available"
-          mkdir -p ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}
-          echo    "../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }} is available"
+          mkdir -p ../DeployConfigRepo/${{ inputs.org-name }}
+          echo    "../DeployConfigRepo/${{ inputs.org-name }} is available"
+          mkdir -p ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}
+          echo    "../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }} is available"
 
       - name: Create namespace
         run: |
-          cat > ../DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml <<EOF
+          cat > ../DeployConfigRepo/${{ inputs.org-name }}/namespace.yaml <<EOF
           apiVersion: v1
           kind: Namespace
           metadata:
             name: ${{ inputs.org-name }}
           EOF
-          echo "Namespace manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/namespace.yaml"
+          echo "Namespace manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/namespace.yaml"
 
       - name: Update secret config
         run: |
           kubectl create secret generic ${{ inputs.project-name }}-config \
             --from-file '${{ inputs.config-path }}' \
             -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
-            ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
+            ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
 
-          echo "Secret manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
+          echo "Secret manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
       - name: Update environment variables
         run: |
           if [ -n "${{ inputs.env-file }}" ]; then
             kubectl create secret generic ${{ inputs.project-name }}-env \
               --from-env-file='${{ inputs.env-file }}' \
               -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
-              ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml
-            echo "Environment variables manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
+              ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml
+            echo "Environment variables manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
           else
             echo "No environment file provided, skipping..."
           fi
 
       - name: Update Application
         run: |
-          file_path="../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
+          file_path="../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
           cat > "$file_path" <<'EOF'
           apiVersion: argoproj.io/v1alpha1
           kind: Application
@@ -419,7 +419,7 @@ jobs:
                   maxDuration: 3m
             revisionHistoryLimit: 3
           EOF
-          echo "ArgoCD Application manifest written to ../DeployConfigRepo/templates/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
+          echo "ArgoCD Application manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
 
       - name: Commit and push manifest files
         run: |
