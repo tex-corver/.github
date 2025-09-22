@@ -188,7 +188,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          # persist-credentials: false
 
       - name: Setup Make
         run: sudo apt-get update && sudo apt-get install -y make
@@ -237,7 +236,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -277,7 +275,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          persist-credentials: false
 
       - name: Clone DeployConfigRepo
         run: |
