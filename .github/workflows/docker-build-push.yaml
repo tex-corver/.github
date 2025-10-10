@@ -110,7 +110,7 @@ on:
       config-path:
         required: false
         type: string
-        default: README.md
+        default: ""
         description: |
           Path to a configuration file that will be made available to your running application.
           The file will be mount to `CONFIG_PATH` inside your container.
@@ -118,6 +118,14 @@ on:
           Read more at `utils.get_config`.
           Examples: '.configs', 'src/apps/worker/.configs.sample', ...
           Default: 'README.md'
+      config-secret:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Path to encrypted file in repo. If provided, this file will override the config at `config-path`.
+
+          Examples: '.config.enc.yaml'
       env-file:
         required: false
         type: string
@@ -128,6 +136,14 @@ on:
           Useful for sensitive information, configuration settings, or runtime parameters.
           Make sure env-file is in KEY=VALUE format.
           Examples: '.env.prod'
+      env-secret:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Path to encrypted file in repo
+
+          Examples: '.env.enc.yaml'
       extra-secret-name:
         required: false
         type: string
@@ -299,24 +315,35 @@ jobs:
           echo "Namespace manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/namespace.yaml"
 
       - name: Update secret config
+        id: update-secret
         run: |
-          kubectl create secret generic ${{ inputs.project-name }}-config \
-            --from-file '${{ inputs.config-path }}' \
-            -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
-            ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
-
+          if [ -n "${{ inputs.config-secret }}" ]; then
+            cp ${{ inputs.config-secret }} ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
+            echo   "Write config secret at ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
+          else
+            kubectl create secret generic ${{ inputs.project-name }}-config \
+              --from-file '${{ inputs.config-path }}' \
+              -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
+              ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml
+          fi
           echo "Secret manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml"
+          config_name=$(kubectl create -f  ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/config.yaml --dry-run=client -o jsonpath='{.metadata.name}')
+          echo "CONFIG_NAME=$config_name" >> "$GITHUB_OUTPUT"
       - name: Update environment variables
+        id: update-env
         run: |
-          if [ -n "${{ inputs.env-file }}" ]; then
+          if [ -n "${{ inputs.env-secret }}" ]; then
+            cp ${{ inputs.env-secret }} ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml
+            echo   "Write env secret at ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
+          else
             kubectl create secret generic ${{ inputs.project-name }}-env \
               --from-env-file='${{ inputs.env-file }}' \
               -n ${{ inputs.org-name }} --dry-run=client -o yaml > \
               ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml
-            echo "Environment variables manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
-          else
-            echo "No environment file provided, skipping..."
           fi
+          echo "Environment variables manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
+          env_name=$(kubectl create -f  ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml --dry-run=client -o jsonpath='{.metadata.name}')
+          echo "ENV_NAME=$env_name" >> "$GITHUB_OUTPUT"
 
       - name: Update Application
         run: |
@@ -342,7 +369,7 @@ jobs:
                   valuesObject:
                     nameOverride: ${{ inputs.project-name }}
                     configPath: /etc/config
-                    configSecret: ${{ inputs.project-name }}-config
+                    configSecret: ${{ steps.update-secret.outputs.CONFIG_NAME }}
                     image:
                       imageOverride: jcr.urieljsc.com/docker/${{ env.IMAGE_NAME }}:${{ inputs.tag }}
                       pullPolicy: Always
@@ -383,14 +410,10 @@ jobs:
                         - secretName: ${{ env.INGRESS_HOST }}-tls
                           hosts:
                             - ${{ env.INGRESS_HOST }}
-          EOF
-          if [ -n "${{ inputs.env-file }}" ]; then
-            cat >> "$file_path" <<'EOF'
                     extraEnvFrom:
                       - secretRef:
-                          name: ${{ inputs.project-name }}-env
+                          name: ${{ steps.update-env.outputs.ENV_NAME }}
           EOF
-          fi
           if [ -n "${{ inputs.extra-secret-name }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
             cat >> "$file_path" <<'EOF'
                     extraVolumes:
