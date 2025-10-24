@@ -233,6 +233,8 @@ jobs:
       #     else
       #       echo "SSH directory not found, skipping SSH setup"
       #     fi
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v7
 
       - name: Run tests
         run: |
@@ -627,7 +629,7 @@ jobs:
             } catch (error) {
               console.error(`Error creating PR: ${error.message}`);
               console.error(`Error details:`, error);
-              
+
               // Provide helpful debugging information
               if (error.status === 422) {
                 console.error('422 Error - Possible causes:');
@@ -637,6 +639,6 @@ jobs:
                 console.error('4. Invalid branch names or references');
                 console.error('5. Insufficient permissions');
               }
-              
+
               throw error; // Re-throw to fail the workflow step
             }
