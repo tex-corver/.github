@@ -149,6 +149,13 @@ on:
         type: string
         description: |
           Additional secret will be mouted to `extra-secret-path` in your container.
+      extra-secret-file:
+        required: false
+        type: string
+        description: |
+          Path to the encrypted extra secret file that will be created as a Kubernetes Secret and mounted into your application pod.
+          This allows you to provide additional sensitive data or configuration that your application needs at runtime.
+          Examples: 'secrets/extra-secret.yaml'
       extra-secret-path:
         required: false
         type: string
@@ -346,7 +353,20 @@ jobs:
           echo "Environment variables manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml"
           env_name=$(kubectl create -f  ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/env.yaml --dry-run=client -o jsonpath='{.metadata.name}')
           echo "ENV_NAME=$env_name" >> "$GITHUB_OUTPUT"
-
+      - name: Add extra secret if provided
+        id: add-extra-secret
+        run: |
+          if [ -n "${{ inputs.extra-secret-file }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+            cp ${{ inputs.extra-secret-file }} ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/extra-secret.yaml
+            echo "Extra secret manifest written to ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/extra-secret.yaml"
+            extra_secret_name=$(kubectl create -f  ../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/extra-secret.yaml --dry-run=client -o jsonpath='{.metadata.name}')
+          elif [ -n "${{ inputs.extra-secret-name }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+            echo "Using existing secret name: ${{ inputs.extra-secret-name }}"
+            extra_secret_name="${{ inputs.extra-secret-name }}"
+          else
+            extra_secret_name=""
+          fi
+          echo "EXTRA_SECRET_NAME=$extra_secret_name" >> "$GITHUB_OUTPUT"
       - name: Update Application
         run: |
           file_path="../DeployConfigRepo/${{ inputs.org-name }}/${{ inputs.project-name }}/application.yaml"
@@ -416,12 +436,12 @@ jobs:
                       - secretRef:
                           name: ${{ steps.update-env.outputs.ENV_NAME }}
           EOF
-          if [ -n "${{ inputs.extra-secret-name }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+          if [ -n "${{ steps.add-extra-secret.outputs.EXTRA_SECRET_NAME }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
             cat >> "$file_path" <<'EOF'
                     extraVolumes:
                       - name: extra-secret-volume
                         secret:
-                          secretName: ${{ inputs.extra-secret-name }}
+                          secretName: ${{ steps.add-extra-secret.outputs.EXTRA_SECRET_NAME }}
                     extraVolumeMounts:
                       - name: extra-secret-volume
                         mountPath: ${{ inputs.extra-secret-path }}
