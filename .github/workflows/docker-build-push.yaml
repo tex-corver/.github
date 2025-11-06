@@ -287,6 +287,8 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/docker/${{ env.IMAGE_NAME }}:${{ inputs.tag }}
           ssh: default=/home/runner/.ssh/id_ed25519
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/cache/cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/cache/cache,mode=max
 
   deploy-on-dev:
     runs-on: arc-runner-set
