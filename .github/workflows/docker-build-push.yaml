@@ -548,7 +548,7 @@ jobs:
 
   create-pr-to-master:
     runs-on: ubuntu-latest
-    needs: [build-image, deploy-on-dev, verify-deployment]
+    needs: [build-image]
     if: github.event_name == 'push' && github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' && inputs.create-pr
     steps:
       - name: Checkout code
