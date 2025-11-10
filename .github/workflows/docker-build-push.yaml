@@ -293,6 +293,7 @@ jobs:
   deploy-on-dev:
     runs-on: arc-runner-set
     needs: build-image
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     steps:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
