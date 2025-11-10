@@ -460,6 +460,80 @@ jobs:
 
 > **_NOTE:_** Others parrarel jobs will be skipped if one of them fails.
 
+## Build Cache Optimization
+
+### How It Works
+
+The workflow automatically uses **Docker registry cache** to speed up builds:
+
+```yaml
+cache-from: type=registry,ref=${{ env.REGISTRY }}/cache/cache
+cache-to: type=registry,ref=${{ env.REGISTRY }}/cache/cache,mode=max
+```
+
+**Benefits**:
+
+- ⚡ **Faster builds**: Reuses layers from previous builds (can be 5-10x faster)
+- 💰 **Cost savings**: Reduces build time and runner usage
+- 🔄 **Shared cache**: All team members and branches benefit from the same cache
+
+### How to Maximize Cache Efficiency
+
+The cache effectiveness depends on your Dockerfile structure:
+
+| Dockerfile Quality | First Build | Subsequent Builds | Code Change Build |
+|-------------------|-------------|-------------------|-------------------|
+| ❌ Poor (code before deps) | 5 min | 5 min | 5 min |
+| ⚠️ OK (deps before code) | 5 min | 30 sec | 2 min |
+| ✅ Excellent (multi-stage + optimized) | 5 min | 10 sec | 30 sec |
+
+#### Example: Cache Hit Rate
+
+```bash
+# First build (no cache)
+[Build] Step 1/5 : FROM python:3.12-slim          # 15s (download)
+[Build] Step 2/5 : COPY requirements.txt          # 0.1s
+[Build] Step 3/5 : RUN pip install -r ...         # 120s (install)
+[Build] Step 4/5 : COPY . .                       # 0.5s
+[Build] Step 5/5 : CMD ["python", "app.py"]       # 0.1s
+Total: ~135s
+
+# Second build (with cache, no changes)
+[Cache] Step 1/5 : FROM python:3.12-slim          # CACHED
+[Cache] Step 2/5 : COPY requirements.txt          # CACHED
+[Cache] Step 3/5 : RUN pip install -r ...         # CACHED
+[Cache] Step 4/5 : COPY . .                       # CACHED
+[Cache] Step 5/5 : CMD ["python", "app.py"]       # CACHED
+Total: ~5s
+
+# Third build (code changes, good Dockerfile)
+[Cache] Step 1/5 : FROM python:3.12-slim          # CACHED
+[Cache] Step 2/5 : COPY requirements.txt          # CACHED
+[Cache] Step 3/5 : RUN pip install -r ...         # CACHED ✅
+[Build] Step 4/5 : COPY . .                       # 0.5s
+[Cache] Step 5/5 : CMD ["python", "app.py"]       # CACHED
+Total: ~6s
+```
+
+### Monitoring Cache Performance
+
+Check your GitHub Actions logs for cache usage:
+
+```text
+✅ Good cache performance:
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 486B done
+#2 [internal] load .dockerignore
+#2 transferring context: 2B done
+#3 [internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 0.5s
+#4 importing cache manifest from registry.../cache/cache
+#4 DONE 1.2s
+...
+#8 [3/5] RUN pip install -r requirements.txt
+#8 CACHED  ← This is what you want to see!
+```
+
 ## Deployment URL
 
 If you specify `ingress: true`, the application will be accessible at:
@@ -559,11 +633,230 @@ gh release create v1.0.0 --title "Version 1.0.0" --notes "Release notes here"
 - Merge to master after code review
 - Workflow auto-creates PRs to master from feature branches
 
-### 2. Docker Optimization
+### 2. Writing Efficient Dockerfiles
 
-- Use multi-stage builds
-- Minimize image layers
-- Use `.dockerignore`
+**IMPORTANT**: The workflow uses Docker build cache to speed up builds. Write your Dockerfile to maximize cache efficiency.
+
+#### Key Principles
+
+**Order layers by change frequency** (least → most frequent):
+
+```dockerfile
+# ❌ BAD: Application code changes invalidate dependency cache
+FROM python:3.12-slim
+WORKDIR /app
+COPY . .                          # Copies everything, including code
+RUN pip install -r requirements.txt  # Re-installs deps on every code change
+CMD ["python", "app.py"]
+
+# ✅ GOOD: Dependencies cached separately from code
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .           # Only copy dependency file first
+RUN pip install -r requirements.txt  # Cached unless requirements.txt changes
+COPY . .                          # Copy code last (changes most frequently)
+CMD ["python", "app.py"]
+```
+
+#### Multi-Stage Builds
+
+Use multi-stage builds to reduce final image size:
+
+```dockerfile
+# ✅ EXCELLENT: Build stage + Runtime stage
+# Stage 1: Build
+FROM python:3.12 AS builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.12-slim
+WORKDIR /app
+# Copy only installed packages, not build tools
+COPY --from=builder /root/.local /root/.local
+COPY . .
+ENV PATH=/root/.local/bin:$PATH
+CMD ["python", "app.py"]
+```
+
+#### Use .dockerignore
+
+Create a `.dockerignore` file to exclude unnecessary files:
+
+```dockerignore
+# Git and CI/CD
+.git
+.github
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.coverage
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Tests
+tests/
+test_*.py
+
+# Local configs
+.env.local
+.env.development
+```
+
+#### Cache Optimization Tips
+
+**1. Group Related Commands**:
+
+```dockerfile
+# ❌ BAD: Multiple RUN commands = multiple layers
+RUN apt-get update
+RUN apt-get install -y curl
+RUN apt-get install -y git
+RUN apt-get clean
+
+# ✅ GOOD: Single RUN command = one layer
+RUN apt-get update && \
+    apt-get install -y curl git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+```
+
+**2. Pin Versions for Reproducibility**:
+
+```dockerfile
+# ❌ BAD: Unpredictable builds
+FROM python:3.12
+RUN pip install flask
+
+# ✅ GOOD: Reproducible builds
+FROM python:3.12.0-slim
+RUN pip install flask==3.0.0
+```
+
+**3. Use BuildKit Cache Mounts** (Advanced):
+
+```dockerfile
+# Mount pip cache to speed up dependency installation
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
+```
+
+#### Language-Specific Best Practices
+
+**Python**:
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies first (rarely change)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install dependencies (change occasionally)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code (changes frequently)
+COPY . .
+
+CMD ["python", "app.py"]
+```
+
+**Node.js**:
+
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files first
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application code
+COPY . .
+
+CMD ["node", "index.js"]
+```
+
+**Go**:
+
+```dockerfile
+# Build stage
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o main .
+
+# Runtime stage
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/main .
+CMD ["./main"]
+```
+
+#### Build Cache Verification
+
+The workflow automatically uses registry cache. Check build logs for:
+
+```text
+✅ Good cache usage:
+#5 [2/4] COPY requirements.txt .
+#5 CACHED
+
+✅ Efficient build:
+#8 [4/4] RUN pip install -r requirements.txt
+#8 CACHED
+```
+
+```text
+⚠️ Poor cache usage (rebuilding every time):
+#5 [2/4] COPY requirements.txt .
+#5 0.123s
+
+#8 [4/4] RUN pip install -r requirements.txt
+#8 45.234s  ← Taking too long, not using cache
+```
+
+#### Dockerfile Checklist
+
+Before committing your Dockerfile, verify:
+
+- [ ] Base image uses specific version tag (not `latest`)
+- [ ] Dependencies installed before copying code
+- [ ] `.dockerignore` file exists and excludes unnecessary files
+- [ ] Multi-stage build used when applicable
+- [ ] Commands grouped to minimize layers
+- [ ] No secrets or credentials in image
+- [ ] Final image size is reasonable (< 500MB for most apps)
+- [ ] Application runs on the correct port specified in workflow
 
 ### 3. Configuration Management
 
@@ -722,6 +1015,69 @@ Check out the example usage in:
 | `v*-rc*` | v1.0.0-rc1, v2.0.0-rc2 | Release candidates |
 | `release-*` | release-2024.11.10 | Date-based releases |
 | `prod-*` | prod-v1, prod-latest | Production tags |
+
+## Quick Reference Card for Developers
+
+### 📦 Dockerfile Best Practices
+
+```dockerfile
+# ✅ DO THIS - Maximize cache efficiency
+FROM python:3.12-slim              # Pin specific version
+WORKDIR /app
+COPY requirements.txt .            # Dependencies first
+RUN pip install -r requirements.txt
+COPY . .                           # Code last
+CMD ["python", "app.py"]
+
+# ❌ NOT THIS - Poor cache usage
+FROM python:latest                 # Unpredictable
+WORKDIR /app
+COPY . .                          # Everything at once
+RUN pip install -r requirements.txt
+CMD ["python", "app.py"]
+```
+
+### 🚀 Build Speed Tips
+
+| Action | Impact | Build Time |
+|--------|--------|------------|
+| Well-structured Dockerfile | ⭐⭐⭐⭐⭐ | 30s (cached) |
+| `.dockerignore` file | ⭐⭐⭐⭐ | -10-20s |
+| Multi-stage builds | ⭐⭐⭐ | Smaller image |
+| Pin dependency versions | ⭐⭐ | Reproducible |
+| Poor structure | ❌ | 5+ min every build |
+
+### 📋 Pre-Push Checklist
+
+Before pushing your code, ensure:
+
+```bash
+# 1. Dockerfile exists and is optimized
+[ -f Dockerfile ] && echo "✅ Dockerfile found"
+
+# 2. .dockerignore exists
+[ -f .dockerignore ] && echo "✅ .dockerignore found"
+
+# 3. Test build locally (optional but recommended)
+docker build -t test-build .
+
+# 4. Run tests locally
+make test  # or your test command
+
+# 5. Push and let CI/CD handle the rest
+git push origin feature/my-feature
+```
+
+### 🎯 Common Mistakes to Avoid
+
+| Mistake | Problem | Solution |
+|---------|---------|----------|
+| Using `COPY . .` before deps | Cache invalidated on every code change | Copy deps first, code last |
+| Missing `.dockerignore` | Large build context, slow uploads | Create `.dockerignore` |
+| Using `latest` tags | Unpredictable builds | Pin specific versions |
+| Multiple RUN commands | Too many layers | Combine with `&&` |
+| Not testing locally | CI fails, wasted time | Build and test before push |
+| Large final image | Slow deployments | Use multi-stage builds |
 
 ## Support
 
