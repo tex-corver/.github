@@ -75,7 +75,6 @@ env:
   DOCKER_PASSWORD: y9wb3N0Z3
   DOCKER_USERNAME: admin
   IMAGE_NAME: ${{ inputs.org-name }}-${{ inputs.project-name }}
-  INGRESS_HOST: ${{ inputs.ingress-domain  }}
 
 jobs:
   lint-test:
