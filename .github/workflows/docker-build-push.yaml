@@ -202,6 +202,8 @@ env:
   DOCKER_USERNAME: admin
   IMAGE_NAME: ${{ inputs.org-name }}-${{ inputs.project-name }}
   INGRESS_HOST: ${{ inputs.ingress-domain  }}
+  DOCKER_CLIENT_TIMEOUT: 300
+  COMPOSE_HTTP_TIMEOUT: 300
 
 jobs:
   run-test:
