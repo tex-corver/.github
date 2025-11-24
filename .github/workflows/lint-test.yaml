@@ -79,23 +79,32 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Check pre-installed tools
+        id: check-tools
+        run: |
+          if command -v python &> /dev/null; then echo "python-installed=true" >> $GITHUB_OUTPUT; fi
+          if command -v poetry &> /dev/null; then echo "poetry-installed=true" >> $GITHUB_OUTPUT; fi
+          if command -v uv &> /dev/null; then echo "uv-installed=true" >> $GITHUB_OUTPUT; fi
+          if command -v make &> /dev/null; then echo "make-installed=true" >> $GITHUB_OUTPUT; fi
+
       - name: Setup Make
+        if: steps.check-tools.outputs.make-installed != 'true'
         run: sudo apt-get update && sudo apt-get install -y make
 
       - name: Set up python
-        if: inputs.install-python != '' && inputs.install-python != 'false'
+        if: inputs.install-python != '' && inputs.install-python != 'false' && steps.check-tools.outputs.python-installed != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.install-python }}
 
       - name: Install Poetry
-        if: inputs.install-python != '' && inputs.install-python != 'false'
+        if: inputs.install-python != '' && inputs.install-python != 'false' && steps.check-tools.outputs.poetry-installed != 'true'
         uses: snok/install-poetry@v1
         with:
           virtualenvs-create: false
 
       - name: Install the latest version of uv
-        if: inputs.install-python != '' && inputs.install-python != 'false'
+        if: inputs.install-python != '' && inputs.install-python != 'false' && steps.check-tools.outputs.uv-installed != 'true'
         uses: astral-sh/setup-uv@v7
 
       - name: Run lint
