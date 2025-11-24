@@ -128,7 +128,7 @@ jobs:
     uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
     with:
       project-name: "my-app"
-      create-pr: false  # Don't create another PR
+      create-pr: false # Don't create another PR
 ```
 
 This runs tests and builds the Docker image for every PR, but **does not deploy** since it's not a push to master/main or a tag.
@@ -143,15 +143,15 @@ name: Deploy on Tag
 on:
   push:
     tags:
-      - 'v*'           # Matches v1.0.0, v2.1.3, etc.
-      - 'release-*'    # Matches release-1.0, release-2024.11.10
+      - "v*" # Matches v1.0.0, v2.1.3, etc.
+      - "release-*" # Matches release-1.0, release-2024.11.10
 
 jobs:
   deploy:
     uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
     with:
       project-name: "my-app"
-      tag: ${{ github.ref_name }}  # Use the tag name as Docker image tag
+      tag: ${{ github.ref_name }} # Use the tag name as Docker image tag
 ```
 
 **Common tag patterns**:
@@ -170,14 +170,14 @@ name: Deploy on Release
 
 on:
   release:
-    types: [published]  # Or: created, released, prereleased
+    types: [published] # Or: created, released, prereleased
 
 jobs:
   deploy:
     uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
     with:
       project-name: "my-app"
-      tag: ${{ github.event.release.tag_name }}  # Use release tag
+      tag: ${{ github.event.release.tag_name }} # Use release tag
 ```
 
 **Release event types**:
@@ -198,10 +198,10 @@ on:
   # Run on push to any branch
   push:
     branches:
-      - '**'  # All branches
+      - "**" # All branches
     tags:
-      - 'v*'  # Version tags
-      - 'release-*'  # Release tags
+      - "v*" # Version tags
+      - "release-*" # Release tags
 
   # Run on pull requests to main branches
   pull_request:
@@ -216,9 +216,9 @@ on:
   workflow_dispatch:
     inputs:
       deploy-env:
-        description: 'Deployment environment'
+        description: "Deployment environment"
         required: false
-        default: 'dev'
+        default: "dev"
 
 jobs:
   deploy:
@@ -230,14 +230,14 @@ jobs:
 
 **What happens with this configuration**:
 
-| Event | Branches/Tags | Behavior |
-|-------|--------------|----------|
-| Push to `feature/*` | Any feature branch | Test + Build + Create PR |
-| Push to `master`/`main` | Main branches | Test + Build + **Deploy** |
-| Push tag `v1.0.0` | Version tag | Test + Build + **Deploy** |
-| Create Release | Any | Test + Build + **Deploy** |
-| Pull Request | To master/main | Test + Build (no deploy, no PR) |
-| Manual trigger | - | Test + Build + Deploy (if on master/main/tag) |
+| Event                   | Branches/Tags      | Behavior                                      |
+| ----------------------- | ------------------ | --------------------------------------------- |
+| Push to `feature/*`     | Any feature branch | Test + Build + Create PR                      |
+| Push to `master`/`main` | Main branches      | Test + Build + **Deploy**                     |
+| Push tag `v1.0.0`       | Version tag        | Test + Build + **Deploy**                     |
+| Create Release          | Any                | Test + Build + **Deploy**                     |
+| Pull Request            | To master/main     | Test + Build (no deploy, no PR)               |
+| Manual trigger          | -                  | Test + Build + Deploy (if on master/main/tag) |
 
 ### Recommended Configurations
 
@@ -258,8 +258,8 @@ on:
 ```yaml
 on:
   push:
-    branches: [master, main, 'feature/**']
-    tags: ['v*']
+    branches: [master, main, "feature/**"]
+    tags: ["v*"]
   pull_request:
     branches: [master, main]
 ```
@@ -273,8 +273,8 @@ on:
 ```yaml
 on:
   push:
-    branches: ['**']
-    tags: ['v*', 'v*.*.*-rc*']
+    branches: ["**"]
+    tags: ["v*", "v*.*.*-rc*"]
   pull_request:
     branches: [master, main, develop]
   release:
@@ -298,7 +298,7 @@ name: Deploy Application
 on:
   push:
     branches: [dev, feature/*, master, main]
-    tags: ['v*', 'release-*']
+    tags: ["v*", "release-*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -346,61 +346,61 @@ jobs:
 
 ### Required Parameters
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
+| Parameter      | Type   | Description                            | Example                       |
+| -------------- | ------ | -------------------------------------- | ----------------------------- |
 | `project-name` | string | Unique identifier for your application | `"api-service"`, `"frontend"` |
 
 ### Optional Parameters
 
 #### Basic Configuration
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `org-name` | string | Repository owner | Organization/team name (e.g., `"tex-corver"`, `"jannic-ai"`) |
-| `tag` | string | `"dev"` | Docker image tag/version (e.g., `"v1.0.0"`, `"prod"`) |
-| `test-command` | string | `"make test"` | Command to run tests (e.g., `"npm test"`, `"pytest"`) |
+| Parameter      | Type   | Default          | Description                                                  |
+| -------------- | ------ | ---------------- | ------------------------------------------------------------ |
+| `org-name`     | string | Repository owner | Organization/team name (e.g., `"tex-corver"`, `"jannic-ai"`) |
+| `tag`          | string | `"dev"`          | Docker image tag/version (e.g., `"v1.0.0"`, `"prod"`)        |
+| `test-command` | string | `"make test"`    | Command to run tests (e.g., `"npm test"`, `"pytest"`)        |
 
 #### Docker Configuration
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `docker-build-file` | string | `"Dockerfile"` | Path to Dockerfile (e.g., `"docker/prod.Dockerfile"`) |
-| `docker-build-context` | string | `"."` | Docker build context directory (e.g., `"src/apps/api"`) |
+| Parameter              | Type   | Default        | Description                                             |
+| ---------------------- | ------ | -------------- | ------------------------------------------------------- |
+| `docker-build-file`    | string | `"Dockerfile"` | Path to Dockerfile (e.g., `"docker/prod.Dockerfile"`)   |
+| `docker-build-context` | string | `"."`          | Docker build context directory (e.g., `"src/apps/api"`) |
 
 #### Network Configuration
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `port` | number | `8000` | Application port inside container (e.g., `3000`, `8080`) |
-| `ingress` | boolean | `true` | Enable HTTPS access via internet |
-| `ingress-domain` | string | `""` | Domain prefix for public URL (e.g., `"api"`, `"app.team"`) |
-| `root-path` | string | `""` | URL path prefix (e.g., `"/api/v1"`, `"/payments"`) |
+| Parameter        | Type    | Default | Description                                                |
+| ---------------- | ------- | ------- | ---------------------------------------------------------- |
+| `port`           | number  | `8000`  | Application port inside container (e.g., `3000`, `8080`)   |
+| `ingress`        | boolean | `true`  | Enable HTTPS access via internet                           |
+| `ingress-domain` | string  | `""`    | Domain prefix for public URL (e.g., `"api"`, `"app.team"`) |
+| `root-path`      | string  | `""`    | URL path prefix (e.g., `"/api/v1"`, `"/payments"`)         |
 
 #### Configuration & Secrets
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `config-path` | string | `""` | Path to config file mounted to container |
-| `config-secret` | string | `""` | Path to encrypted config file (e.g., `".config.enc.yaml"`) |
-| `env-file` | string | `""` | Environment variables file in KEY=VALUE format |
-| `env-secret` | string | `""` | Path to encrypted env file |
-| `extra-secret-name` | string | `""` | Name of extra Kubernetes secret |
-| `extra-secret-file` | string | `""` | Path to extra secret file |
-| `extra-secret-path` | string | `""` | Mount path for extra secret in container |
+| Parameter           | Type   | Default | Description                                                |
+| ------------------- | ------ | ------- | ---------------------------------------------------------- |
+| `config-path`       | string | `""`    | Path to config file mounted to container                   |
+| `config-secret`     | string | `""`    | Path to encrypted config file (e.g., `".config.enc.yaml"`) |
+| `env-file`          | string | `""`    | Environment variables file in KEY=VALUE format             |
+| `env-secret`        | string | `""`    | Path to encrypted env file                                 |
+| `extra-secret-name` | string | `""`    | Name of extra Kubernetes secret                            |
+| `extra-secret-file` | string | `""`    | Path to extra secret file                                  |
+| `extra-secret-path` | string | `""`    | Mount path for extra secret in container                   |
 
 #### Monitoring Configuration
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `service-monitor` | boolean | `false` | Enable Prometheus ServiceMonitor for metrics |
-| `prometheus-rule` | boolean | `false` | Create Prometheus alerting rules |
-| `alertmanager-config` | boolean | `false` | Create Alertmanager configuration |
+| Parameter             | Type    | Default | Description                                  |
+| --------------------- | ------- | ------- | -------------------------------------------- |
+| `service-monitor`     | boolean | `false` | Enable Prometheus ServiceMonitor for metrics |
+| `prometheus-rule`     | boolean | `false` | Create Prometheus alerting rules             |
+| `alertmanager-config` | boolean | `false` | Create Alertmanager configuration            |
 
 #### Pull Request Behavior
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `create-pr` | boolean | `true` | Auto-create PR to master from feature branches |
+| Parameter   | Type    | Default | Description                                    |
+| ----------- | ------- | ------- | ---------------------------------------------- |
+| `create-pr` | boolean | `true`  | Auto-create PR to master from feature branches |
 
 ## Example
 
@@ -437,12 +437,7 @@ jobs:
   call-common-workflow:
     strategy:
       matrix:
-        service: [
-          schedule-manager,
-          dataset-manager,
-          execution-manager,
-          worker
-        ]
+        service: [schedule-manager, dataset-manager, execution-manager, worker]
     uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
     with:
       org-name: tex-corver
@@ -455,7 +450,6 @@ jobs:
       ingress-subdomain: metis
       root-path: /${{ matrix.service }}
       config-path: src/apps/${{ matrix.service }}/.configs.sample
-
 ```
 
 > **_NOTE:_** Others parrarel jobs will be skipped if one of them fails.
@@ -481,11 +475,11 @@ cache-to: type=registry,ref=${{ env.REGISTRY }}/cache/cache,mode=max
 
 The cache effectiveness depends on your Dockerfile structure:
 
-| Dockerfile Quality | First Build | Subsequent Builds | Code Change Build |
-|-------------------|-------------|-------------------|-------------------|
-| ❌ Poor (code before deps) | 5 min | 5 min | 5 min |
-| ⚠️ OK (deps before code) | 5 min | 30 sec | 2 min |
-| ✅ Excellent (multi-stage + optimized) | 5 min | 10 sec | 30 sec |
+| Dockerfile Quality                     | First Build | Subsequent Builds | Code Change Build |
+| -------------------------------------- | ----------- | ----------------- | ----------------- |
+| ❌ Poor (code before deps)             | 5 min       | 5 min             | 5 min             |
+| ⚠️ OK (deps before code)               | 5 min       | 30 sec            | 2 min             |
+| ✅ Excellent (multi-stage + optimized) | 5 min       | 10 sec            | 30 sec            |
 
 #### Example: Cache Hit Rate
 
@@ -983,38 +977,38 @@ Check out the example usage in:
 
 ### Trigger Configuration Cheat Sheet
 
-| Goal | Configuration | Command/Action |
-|------|--------------|----------------|
-| **Deploy on every commit to master** | `on: push: branches: [master]` | `git push origin master` |
-| **Deploy with version tags** | `on: push: tags: ['v*']` | `git tag v1.0.0 && git push origin v1.0.0` |
-| **Deploy on GitHub Release** | `on: release: types: [published]` | Create release via GitHub UI or `gh release create` |
-| **Test PRs without deploying** | `on: pull_request: branches: [master]` | Create PR via GitHub UI |
-| **Auto-create PRs from features** | `on: push: branches: ['feature/**']` | `git push origin feature/my-feature` |
-| **Manual deployment** | `on: workflow_dispatch:` | Trigger via GitHub Actions UI |
+| Goal                                 | Configuration                          | Command/Action                                      |
+| ------------------------------------ | -------------------------------------- | --------------------------------------------------- |
+| **Deploy on every commit to master** | `on: push: branches: [master]`         | `git push origin master`                            |
+| **Deploy with version tags**         | `on: push: tags: ['v*']`               | `git tag v1.0.0 && git push origin v1.0.0`          |
+| **Deploy on GitHub Release**         | `on: release: types: [published]`      | Create release via GitHub UI or `gh release create` |
+| **Test PRs without deploying**       | `on: pull_request: branches: [master]` | Create PR via GitHub UI                             |
+| **Auto-create PRs from features**    | `on: push: branches: ['feature/**']`   | `git push origin feature/my-feature`                |
+| **Manual deployment**                | `on: workflow_dispatch:`               | Trigger via GitHub Actions UI                       |
 
 ### Deployment Decision Matrix
 
-| Trigger Type | Branch/Tag | Tests | Build | Deploy | Create PR |
-|--------------|-----------|-------|-------|--------|-----------|
-| Push | `feature/*` | ✅ | ✅ | ❌ | ✅ |
-| Push | `master`/`main` | ✅ | ✅ | ✅ | ❌ |
-| Push | Tag `v*` | ✅ | ✅ | ✅ | ❌ |
-| Pull Request | To `master` | ✅ | ✅ | ❌ | ❌ |
-| Release | Published | ✅ | ✅ | ✅ | ❌ |
-| Manual | Any | ✅ | ✅ | Conditional* | ❌ |
+| Trigger Type | Branch/Tag      | Tests | Build | Deploy        | Create PR |
+| ------------ | --------------- | ----- | ----- | ------------- | --------- |
+| Push         | `feature/*`     | ✅    | ✅    | ❌            | ✅        |
+| Push         | `master`/`main` | ✅    | ✅    | ✅            | ❌        |
+| Push         | Tag `v*`        | ✅    | ✅    | ✅            | ❌        |
+| Pull Request | To `master`     | ✅    | ✅    | ❌            | ❌        |
+| Release      | Published       | ✅    | ✅    | ✅            | ❌        |
+| Manual       | Any             | ✅    | ✅    | Conditional\* | ❌        |
 
 \* Manual triggers deploy only if on master/main branch or tag
 
 ### Common Tag Patterns
 
-| Pattern | Matches | Use Case |
-|---------|---------|----------|
-| `v*` | v1.0.0, v2.1.3, vAny | All versions |
-| `v[0-9]+.*` | v1.0.0, v2.1.3 | Numeric versions only |
-| `v*.*.*` | v1.0.0, v2.1.3 | Semantic versioning |
-| `v*-rc*` | v1.0.0-rc1, v2.0.0-rc2 | Release candidates |
-| `release-*` | release-2024.11.10 | Date-based releases |
-| `prod-*` | prod-v1, prod-latest | Production tags |
+| Pattern     | Matches                | Use Case              |
+| ----------- | ---------------------- | --------------------- |
+| `v*`        | v1.0.0, v2.1.3, vAny   | All versions          |
+| `v[0-9]+.*` | v1.0.0, v2.1.3         | Numeric versions only |
+| `v*.*.*`    | v1.0.0, v2.1.3         | Semantic versioning   |
+| `v*-rc*`    | v1.0.0-rc1, v2.0.0-rc2 | Release candidates    |
+| `release-*` | release-2024.11.10     | Date-based releases   |
+| `prod-*`    | prod-v1, prod-latest   | Production tags       |
 
 ## Quick Reference Card for Developers
 
@@ -1039,13 +1033,13 @@ CMD ["python", "app.py"]
 
 ### 🚀 Build Speed Tips
 
-| Action | Impact | Build Time |
-|--------|--------|------------|
-| Well-structured Dockerfile | ⭐⭐⭐⭐⭐ | 30s (cached) |
-| `.dockerignore` file | ⭐⭐⭐⭐ | -10-20s |
-| Multi-stage builds | ⭐⭐⭐ | Smaller image |
-| Pin dependency versions | ⭐⭐ | Reproducible |
-| Poor structure | ❌ | 5+ min every build |
+| Action                     | Impact     | Build Time         |
+| -------------------------- | ---------- | ------------------ |
+| Well-structured Dockerfile | ⭐⭐⭐⭐⭐ | 30s (cached)       |
+| `.dockerignore` file       | ⭐⭐⭐⭐   | -10-20s            |
+| Multi-stage builds         | ⭐⭐⭐     | Smaller image      |
+| Pin dependency versions    | ⭐⭐       | Reproducible       |
+| Poor structure             | ❌         | 5+ min every build |
 
 ### 📋 Pre-Push Checklist
 
@@ -1070,14 +1064,111 @@ git push origin feature/my-feature
 
 ### 🎯 Common Mistakes to Avoid
 
-| Mistake | Problem | Solution |
-|---------|---------|----------|
+| Mistake                      | Problem                                | Solution                   |
+| ---------------------------- | -------------------------------------- | -------------------------- |
 | Using `COPY . .` before deps | Cache invalidated on every code change | Copy deps first, code last |
-| Missing `.dockerignore` | Large build context, slow uploads | Create `.dockerignore` |
-| Using `latest` tags | Unpredictable builds | Pin specific versions |
-| Multiple RUN commands | Too many layers | Combine with `&&` |
-| Not testing locally | CI fails, wasted time | Build and test before push |
-| Large final image | Slow deployments | Use multi-stage builds |
+| Missing `.dockerignore`      | Large build context, slow uploads      | Create `.dockerignore`     |
+| Using `latest` tags          | Unpredictable builds                   | Pin specific versions      |
+| Multiple RUN commands        | Too many layers                        | Combine with `&&`          |
+| Not testing locally          | CI fails, wasted time                  | Build and test before push |
+| Large final image            | Slow deployments                       | Use multi-stage builds     |
+
+## 💡 Usage Examples
+
+Here are some common ways to use this workflow in your repository's `.github/workflows/ci.yml`.
+
+### 1. Standard Python Service (Default)
+
+Ideal for Python 3.12 projects using Poetry/uv.
+
+```yaml
+name: CI/CD
+
+on:
+  push:
+    branches: ["**"]
+  release:
+    types: [published]
+
+jobs:
+  build-and-deploy:
+    uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
+    with:
+      org-name: "tex-corver"
+      project-name: "my-python-service"
+      # Uses defaults: Python 3.12, make test, port 8000
+    secrets: inherit
+```
+
+### 2. Python Service with Specific Version
+
+If you need a specific Python version (e.g., 3.11).
+
+```yaml
+name: CI/CD
+
+jobs:
+  build-and-deploy:
+    uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
+    with:
+      org-name: "tex-corver"
+      project-name: "legacy-service"
+      install-python: "3.11"
+      test-command: "pytest tests/"
+    secrets: inherit
+```
+
+### 3. Non-Python Service (Node.js, Go, etc.)
+
+Disable Python setup to save time and avoid errors.
+
+```yaml
+name: CI/CD
+
+jobs:
+  build-and-deploy:
+    uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
+    with:
+      org-name: "tex-corver"
+      project-name: "frontend-app"
+      install-python: "false" # Skip Python setup
+      test-command: "npm test" # Use your language's test command
+      port: 3000 # Adjust port for your app
+    secrets: inherit
+```
+
+### 4. Full Configuration
+
+Example with secrets, custom ingress, and monitoring enabled.
+
+```yaml
+name: CI/CD
+
+jobs:
+  build-and-deploy:
+    uses: tex-corver/.github/.github/workflows/docker-build-push.yaml@master
+    with:
+      org-name: "tex-corver"
+      project-name: "payment-api"
+      install-python: "3.12"
+
+      # Networking
+      port: 8080
+      ingress-domain: "api" # https://api.urieljsc.com
+      root-path: "/v1"
+
+      # Config & Secrets
+      config-path: "config/prod.yaml"
+      env-file: ".env.production"
+
+      # Monitoring
+      service-monitor: true
+      prometheus-rule: true
+
+      # PR Management
+      pr-reviewers: "lead-dev,architect"
+    secrets: inherit
+```
 
 ## Support
 
