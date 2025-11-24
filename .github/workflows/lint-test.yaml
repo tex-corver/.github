@@ -1,5 +1,4 @@
-# .github/workflows/docker-build-push.yml
-name: Build and Push Docker Image
+name: Lint and Test
 
 on:
   workflow_call:
@@ -9,67 +8,58 @@ on:
         type: string
         default: ${{ github.repository_owner }}
         description: |
-          Organization or team name that groups related applications together.
-          This creates logical separation between different teams/projects in the deployment environment.
-          Used as part of your application's domain name and Docker image name.
-          Examples: 'tex-corver', 'jannic-ai', ...
+          Organization or team name.
           Default: Repository owner name
       project-name:
-        required: true
-        type: string
-        description: |
-          Unique identifier for your specific application or service within the organization.
-          Used for Docker image naming, deployment identification, and application configuration.
-          Should be descriptive and follow naming conventions (lowercase, hyphens allowed).
-          Examples: 'user-service', 'pay4me', 'landing-page', ...
-      test-command:
         required: false
         type: string
-        default: make test
+        default: "project"
         description: |
-          Command to run tests before building the Docker image.
-          If tests fail, others steps will be aborted.
-          Examples: 'npm test', 'pytest', 'go test ./...'
-          Default: 'make test' (assuming you have a Makefile with a 'test' target)
+          Project name for cache key.
+      install-python:
+        required: false
+        type: string
+        default: "3.12"
+        description: |
+          Python version to install.
+          Set to "" or "false" to skip Python installation.
+          Default: "3.12"
       lint-command:
         required: false
         type: string
-        default: make lint
+        default: "make lint"
         description: |
-          Command to run tests before building the Docker image.
-          If tests fail, others steps will be aborted.
-          Examples: 'npm test', 'pytest', 'go test ./...'
-          Default: 'make test' (assuming you have a Makefile with a 'test' target)
+          Command to run linting.
+          Default: "make lint"
+      test-command:
+        required: false
+        type: string
+        default: "make test"
+        description: |
+          Command to run tests.
+          Default: "make test"
       docker-build-file:
         required: false
         type: string
-        default: Dockerfile
+        default: "Dockerfile"
         description: |
-          Relative path from root of repository to the Dockerfile used for building your application image.
-          Useful when you have multiple Dockerfiles or when the Dockerfile is in a subdirectory.
-          Examples: 'Dockerfile', 'docker/Dockerfile', 'src/apps/api/Dockerfile'
-          Default: 'Dockerfile' (in repository root)
+          Path to Dockerfile.
+          Default: "Dockerfile"
       docker-build-context:
         required: false
         type: string
-        default: .
+        default: "."
         description: |
-          Directory path that contains all the files needed to build your Docker image.
-          This determines which files are available during the build process (COPY, ADD commands).
-          Should contain all necessary source code, dependencies, and configuration files.
-          Examples: '.', 'src/apps/schedule-manager', ...
-          Default: '.' (repository root)
-
-      create-pr:
+          Build context.
+          Default: "."
+      working-directory:
         required: false
-        type: boolean
-        default: true
+        type: string
+        default: "."
         description: |
-          Whether to create a pull request to merge the changes into the `master` branch after deployment.
-          Useful for development workflows where you want to review changes before merging.
-          If false, the workflow will not create a PR, but the deployment will still proceed.
-          Ignored if the workflow is triggered on `master` branch.
-          Default: true
+          Directory to run commands in.
+          Default: "."
+
 env:
   REGISTRY: artifactory-jcr.artifactory-jcr.svc:8081
   DOCKER_PASSWORD: y9wb3N0Z3
@@ -77,8 +67,12 @@ env:
   IMAGE_NAME: ${{ inputs.org-name }}-${{ inputs.project-name }}
 
 jobs:
-  lint-test:
+  lint-and-test:
     runs-on: arc-runner-set
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -87,46 +81,42 @@ jobs:
 
       - name: Setup Make
         run: sudo apt-get update && sudo apt-get install -y make
+
       - name: Set up python
-        id: setup-python
+        if: inputs.install-python != '' && inputs.install-python != 'false'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ inputs.install-python }}
 
       - name: Install Poetry
+        if: inputs.install-python != '' && inputs.install-python != 'false'
         uses: snok/install-poetry@v1
         with:
           virtualenvs-create: false
+
       - name: Install the latest version of uv
+        if: inputs.install-python != '' && inputs.install-python != 'false'
         uses: astral-sh/setup-uv@v7
+
+      - name: Run lint
+        run: |
+          echo "Running lint..."
+          echo "Using lint command: ${{ inputs.lint-command }}"
+          if ! ${{ inputs.lint-command }}; then
+            echo "Lint failed"
+            exit 1
+          fi
+          echo "Lint completed successfully"
 
       - name: Run tests
         run: |
           echo "Running tests..."
           echo "Using test command: ${{ inputs.test-command }}"
           if ! ${{ inputs.test-command }}; then
-            echo "Tests failed, aborting workflow"
+            echo "Tests failed"
             exit 1
           fi
           echo "Tests completed successfully"
-      - name: Lint code
-        run: |
-          echo "Running linting..."
-          echo "Using lint command: ${{ inputs.lint-command }}"
-          if ! ${{ inputs.lint-command }}; then
-            echo "Linting failed, aborting workflow"
-            exit 1
-          fi
-          echo "Linting completed successfully"
-
-  build-image:
-    runs-on: arc-runner-set
-    needs: lint-test
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -149,9 +139,8 @@ jobs:
         with:
           context: ${{ inputs.docker-build-context }}
           file: ${{ inputs.docker-build-file }}
-          platforms: linux/amd64
           push: false
-          tags: ${{ env.REGISTRY }}/docker/${{ env.IMAGE_NAME }}:dev
+          platforms: linux/amd64
           ssh: default=/home/runner/.ssh/id_ed25519
           cache-from: type=registry,ref=${{ env.REGISTRY }}/cache/cache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/cache/cache,mode=max
