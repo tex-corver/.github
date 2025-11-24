@@ -196,6 +196,21 @@ on:
           If false, the workflow will not create a PR, but the deployment will still proceed.
           Ignored if the workflow is triggered on `master` branch.
           Default: true
+      install-python:
+        required: false
+        type: string
+        default: "3.12"
+        description: |
+          Python version to install.
+          Set to "" or "false" to skip Python installation.
+          Default: "3.12"
+      pr-reviewers:
+        required: false
+        type: string
+        default: "duchuyvp,texcorver"
+        description: |
+          Comma-separated list of GitHub usernames to request review from on the created PR.
+          Default: "duchuyvp,texcorver"
 env:
   REGISTRY: artifactory-jcr.artifactory-jcr.svc:8081
   DOCKER_PASSWORD: y9wb3N0Z3
@@ -208,6 +223,7 @@ env:
 jobs:
   run-test:
     runs-on: arc-runner-set
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -217,12 +233,14 @@ jobs:
       - name: Setup Make
         run: sudo apt-get update && sudo apt-get install -y make
       - name: Set up python
+        if: inputs.install-python != '' && inputs.install-python != 'false'
         id: setup-python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ inputs.install-python }}
 
       - name: Install Poetry
+        if: inputs.install-python != '' && inputs.install-python != 'false'
         uses: snok/install-poetry@v1
         with:
           virtualenvs-create: false
@@ -243,6 +261,7 @@ jobs:
       #       echo "SSH directory not found, skipping SSH setup"
       #     fi
       - name: Install the latest version of uv
+        if: inputs.install-python != '' && inputs.install-python != 'false'
         uses: astral-sh/setup-uv@v7
 
       - name: Run tests
@@ -258,6 +277,7 @@ jobs:
   build-image:
     runs-on: arc-runner-set
     needs: run-test
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -295,6 +315,7 @@ jobs:
   deploy-on-dev:
     runs-on: arc-runner-set
     needs: build-image
+    timeout-minutes: 60
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')) ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
@@ -517,6 +538,7 @@ jobs:
   verify-deployment:
     runs-on: arc-runner-set
     needs: deploy-on-dev
+    timeout-minutes: 60
     outputs:
       link: ${{ steps.get-output.outputs.link }}
     steps:
@@ -551,7 +573,11 @@ jobs:
   create-pr-to-master:
     runs-on: ubuntu-latest
     needs: [build-image]
+    timeout-minutes: 10
     if: github.event_name == 'push' && github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' && inputs.create-pr
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -605,7 +631,7 @@ jobs:
                   owner,
                   repo,
                   issue_number: existingPR.number,
-                  body: `🚀 **New Deployment Completed**\n\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nDeployment Link: ${{ needs.verify-deployment.outputs.link }}\n\nThis PR has been updated with the latest changes.`
+                  body: `🚀 **New Deployment Completed**\n\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\n\nThis PR has been updated with the latest changes.`
                 });
                 return;
               }
@@ -622,13 +648,10 @@ jobs:
               - **Project**: ${{ env.IMAGE_NAME }}
               - **Branch**: ${{ github.ref_name }}
               - **Commit**: ${{ github.sha }}
-              - **Deployment Link**: ${{ needs.verify-deployment.outputs.link }}
 
               ## ✅ Verification Status
               - ✅ Tests passed
               - ✅ Image built and pushed successfully
-              - ✅ Deployed to development environment
-              - ✅ Deployment verification completed
 
               ## 📋 Changes
               This PR contains the latest changes from the \`${head}\` branch and is ready for production deployment.
@@ -638,19 +661,19 @@ jobs:
 
               console.log(`Pull request created successfully: ${pr.data.html_url}`);
 
-              // Try to assign reviewers (non-blocking)
+                            // Try to assign reviewers (non-blocking)
               try {
-                await github.rest.pulls.requestReviewers({
-                  owner,
-                  repo,
-                  pull_number: pr.data.number,
-                  reviewers: ['duchuyvp', 'texcorver']
-                });
-                console.log('Reviewers assigned successfully');
+                const reviewersList = '${{ inputs.pr-reviewers }}'.split(',').map(r => r.trim()).filter(r => r);
+                if (reviewersList.length > 0) {
+                  await github.rest.pulls.requestReviewers({
+                    owner,
+                    repo,
+                    pull_number: pr.data.number,
+                    reviewers: reviewersList
+                  });
+                  console.log('Reviewers assigned successfully');
+                }
               } catch (reviewerError) {
-                console.log(`Warning: Could not assign reviewers: ${reviewerError.message}`);
-                // Continue without failing the workflow
-              }
 
             } catch (error) {
               console.error(`Error creating PR: ${error.message}`);
