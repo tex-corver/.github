@@ -97,6 +97,22 @@ on:
           Final URL format: https://{domain}?.urieljsc.com{root-path}
           Examples: 'pay4me-api' → https://pay4me-api.urieljsc.com, '' → https://urieljsc.com
           Only applies when ingress=true. Default: ''
+      liveness-path:
+        required: false
+        type: string
+        default: ""
+        description: |
+          HTTP path used for Kubernetes liveness probe to check if your application is running.
+          Use for verify deployment if provided.
+          Examples: '/healthz', '/status', '/ping', '/'
+      readiness-path:
+        required: false
+        type: string
+        default: ""
+        description: |
+          HTTP path used for Kubernetes readiness probe to check if your application is ready to serve traffic.
+          Use for verify deployment if provided.
+          Examples: '/ready', '/health', '/status', '/'
       root-path:
         required: false
         type: string
@@ -474,6 +490,16 @@ jobs:
                     extraEnvFrom:
                       - secretRef:
                           name: ${{ steps.update-env.outputs.ENV_NAME }}
+                    livenessProbe:
+                      enabled: ${{ inputs.liveness-path != '' && 'true' || 'false' }}
+                      httpGet:
+                        path: ${{ inputs.liveness-path }}
+                        port: ${{ inputs.port }}
+                    readinessProbe:
+                      enabled: ${{ inputs.readiness-path != '' && 'true' || 'false' }}
+                      httpGet:
+                        path: ${{ inputs.readiness-path }}
+                        port: ${{ inputs.port }}
           EOF
           if [ -n "${{ steps.add-extra-secret.outputs.EXTRA_SECRET_NAME }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
             cat >> "$file_path" <<'EOF'
