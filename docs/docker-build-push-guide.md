@@ -388,6 +388,13 @@ jobs:
 | `extra-secret-file` | string | `""`    | Path to extra secret file                                  |
 | `extra-secret-path` | string | `""`    | Mount path for extra secret in container                   |
 
+#### Health Check Configuration
+
+| Parameter         | Type   | Default | Description                                                          |
+| ----------------- | ------ | ------- | -------------------------------------------------------------------- |
+| `liveness-path`   | string | `""`    | HTTP path for liveness probe (e.g., `"/healthz"`, `"/ping"`)         |
+| `readiness-path`  | string | `""`    | HTTP path for readiness probe (e.g., `"/ready"`, `"/health"`)        |
+
 #### Monitoring Configuration
 
 | Parameter             | Type    | Default | Description                                  |

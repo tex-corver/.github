@@ -595,6 +595,7 @@ jobs:
           echo "Deployment verification completed successfully"
       - name: Verify deployment
         timeout-minutes: 5
+        if: inputs.liveness-path != '' || inputs.readiness-path != ''
         run: |
           echo "Running a simple request to verify the deployment..."
           while ! curl -s --head ${{ env.IMAGE_NAME }}.${{ inputs.org-name }}.svc:${{ inputs.port }}; do
