@@ -23,7 +23,8 @@ jobs:
 
   notify-on-failure:
     runs-on: ubuntu-latest
-    if: ${{ always() && failure() && startsWith(github.repository, 'genbook') }}
+    needs: [build, test]
+    if: ${{ always() && failure() && contains(github.repository, '/.github') }}
     steps:
       - name: 🔔 Send Discord Notification
         uses: Ilshidur/action-discord@master
