@@ -1,0 +1,34 @@
+name: CI/CD Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      fail-to-notify:
+        description: "Whether to trigger notification job on failure"
+        required: false
+        default: "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Building..."
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ inputs.fail-to-notify == 'true' }}
+    steps:
+      - run: exit 1 # Simulate a failure for demonstration
+
+  notify-on-failure:
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: ${{ failure() && startsWith(github.repository, 'genbook') }}
+    steps:
+      - name: 🔔 Send Discord Notification
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: https://discord.com/api/webhooks/1448309209941803028/bGLJZmoYKN9iPyJfOumwEGDSKYobDRqMnQDGrLQ0OFM1b9CV3gd11GqgXf8TOwzTjcU7
+        with:
+          args: "🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**! [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
