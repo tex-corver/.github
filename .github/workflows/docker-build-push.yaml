@@ -743,8 +743,7 @@ jobs:
             🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**!
 
             **Repository:** ${{ github.repository }}
-            **Branch:** ${{ github.ref_name }}
-            **Commit:** ${{ github.sha }}
+            **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
             **Author:** ${{ github.actor }}
             **Event:** ${{ github.event_name }}
             **Run:** #${{ github.run_number }}
@@ -754,8 +753,7 @@ jobs:
             - deploy-on-dev: ${{ needs.deploy-on-dev.result }}
             - verify-deployment: ${{ needs.verify-deployment.result }}
 
-            **Failed Jobs:** run-test, build-image, deploy-on-dev, verify-deployment
             **Triggered by:** ${{ github.triggering_actor }}
 
             🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            📝 [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            ${{ github.event_name == 'pull_request' && format('🔀 [View Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
