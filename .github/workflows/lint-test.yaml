@@ -168,7 +168,7 @@ jobs:
             🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**!
 
             **Repository:** ${{ github.repository }}
-            **Branch:** ${{ github.ref_name }}
+            **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
             **Commit:** ${{ github.sha }}
             **Author:** ${{ github.actor }}
             **Event:** ${{ github.event_name }}
@@ -179,3 +179,4 @@ jobs:
 
             🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             📝 [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            ${{ github.event_name == 'pull_request' && format('🔀 [View Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
