@@ -1,6 +1,12 @@
 name: CI/CD Workflow
 
 on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches:
+      - "*"
   workflow_dispatch:
     inputs:
       fail-to-notify:
@@ -17,7 +23,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ inputs.fail-to-notify == 'true' }}
+    if: ${{ inputs.fail-to-notify == 'true' || github.event_name != 'workflow_dispatch' }}
     steps:
       - run: exit 1 # Simulate a failure for demonstration
 
@@ -37,4 +43,34 @@ jobs:
         env:
           DISCORD_WEBHOOK: https://discord.com/api/webhooks/1448309209941803028/bGLJZmoYKN9iPyJfOumwEGDSKYobDRqMnQDGrLQ0OFM1b9CV3gd11GqgXf8TOwzTjcU7
         with:
-          args: "🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**! [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          args: |
+            🚨 **Workflow Failed: ${{ github.workflow }}**
+
+            |-------|-------|
+            | 📦 Repository | `${{ github.repository }}` |
+            | 🌿 Branch | `${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}` |
+            | 👤 Author | ${{ github.actor }} |
+            | 🎯 Event | ${{ github.event_name }} |
+            | 💥 Failed Job | `lint-and-test` |
+            | 🔢 Run | #${{ github.run_number }} |
+            | 📝 Commit | `${{ github.sha }}` |
+            |-------|-------|
+
+            **Links:**
+            🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) • 📝 [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})${{ github.event_name == 'pull_request' && format(' • 🔀 [Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
+            ------------------------
+            🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**!
+
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Author:** ${{ github.actor }}
+            **Event:** ${{ github.event_name }}
+            **Run:** #${{ github.run_number }}
+
+            **Failed Job:** lint-and-test
+            **Triggered by:** ${{ github.triggering_actor }}
+
+            🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            📝 [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            ${{ github.event_name == 'pull_request' && format('🔀 [View Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
