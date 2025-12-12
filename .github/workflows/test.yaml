@@ -46,6 +46,7 @@ jobs:
           args: |
             🚨 **Workflow Failed: ${{ github.workflow }}**
 
+            ```
             |-------|-------|
             | 📦 Repository | `${{ github.repository }}` |
             | 🌿 Branch | `${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}` |
@@ -55,6 +56,7 @@ jobs:
             | 🔢 Run | #${{ github.run_number }} |
             | 📝 Commit | `${{ github.sha }}` |
             |-------|-------|
+            ```
 
             **Links:**
             🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) • 📝 [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})${{ github.event_name == 'pull_request' && format(' • 🔀 [Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
