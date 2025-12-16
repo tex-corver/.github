@@ -403,7 +403,7 @@ jobs:
             cp ${{ inputs.config-secret }} ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml
             echo   "Write config secret at ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml"
           else
-            kubectl create secret generic ${{ inputs.project-name }}-config \
+            kubectl create secret generic ${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}-config \
               --from-file '${{ inputs.config-path }}' \
               -n ${{ needs.extract-branch-info.outputs.org-name }} --dry-run=client -o yaml > \
               ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml
@@ -418,7 +418,7 @@ jobs:
             cp ${{ inputs.env-secret }} ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml
             echo   "Write env secret at ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml"
           else
-            kubectl create secret generic ${{ inputs.project-name }}-env \
+            kubectl create secret generic ${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}-env \
               --from-env-file='${{ inputs.env-file }}' \
               -n ${{ needs.extract-branch-info.outputs.org-name }} --dry-run=client -o yaml > \
               ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml
