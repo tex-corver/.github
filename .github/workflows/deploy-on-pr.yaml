@@ -1,0 +1,782 @@
+# .github/workflows/deploy-on-pr.yaml
+name: Deploy on PR
+
+on:
+  workflow_call:
+    inputs:
+      org-name:
+        required: false
+        type: string
+        default: ${{ github.repository_owner }}
+        description: |
+          Organization or team name that groups related applications together.
+          This creates logical separation between different teams/projects in the deployment environment.
+          Used as part of your application's domain name and Docker image name.
+          Examples: 'tex-corver', 'jannic-ai', ...
+          Default: Repository owner name
+      project-name:
+        required: true
+        type: string
+        description: |
+          Unique identifier for your specific application or service within the organization.
+          Used for Docker image naming, deployment identification, and application configuration.
+          Should be descriptive and follow naming conventions (lowercase, hyphens allowed).
+          Examples: 'user-service', 'pay4me', 'landing-page', ...
+      tag:
+        required: false
+        type: string
+        default: dev
+        description: |
+          Version tag that will be applied to your Docker image. Typically represents the environment or version.
+          The image will be tagged as: {registry}/{org-name}-{project-name}:{tag}
+          Common values: 'dev', 'v1', 'prod', 'v1.0.0', or git commit SHA
+          Default: 'dev'
+      test-command:
+        required: false
+        type: string
+        default: make test
+        description: |
+          Command to run tests before building the Docker image.
+          If tests fail, others steps will be aborted.
+          Examples: 'npm test', 'pytest', 'go test ./...'
+          Default: 'make test' (assuming you have a Makefile with a 'test' target)
+      docker-build-file:
+        required: false
+        type: string
+        default: Dockerfile
+        description: |
+          Relative path from root of repository to the Dockerfile used for building your application image.
+          Useful when you have multiple Dockerfiles or when the Dockerfile is in a subdirectory.
+          Examples: 'Dockerfile', 'docker/Dockerfile', 'src/apps/api/Dockerfile'
+          Default: 'Dockerfile' (in repository root)
+      docker-build-context:
+        required: false
+        type: string
+        default: .
+        description: |
+          Directory path that contains all the files needed to build your Docker image.
+          This determines which files are available during the build process (COPY, ADD commands).
+          Should contain all necessary source code, dependencies, and configuration files.
+          Examples: '.', 'src/apps/schedule-manager', ...
+          Default: '.' (repository root)
+      port:
+        required: false
+        type: number
+        default: 8000
+        description: |
+          TCP port number that your application listens on inside the container.
+          This must exactly match the port your application binds to (e.g., app.run(port=8080)).
+          Used for routing traffic to your application and health checks.
+          Common ports: 3000 (Node.js), 8000 (Python/Django), 8080 (Spring Boot), 80 (Nginx)
+          Default: 8000
+      ingress:
+        required: false
+        type: boolean
+        default: true
+        description: |
+          Controls whether your application will be accessible from the internet via HTTPS.
+          When enabled, your application gets a public URL with automatic SSL/TLS certificates.
+          Set to false for internal services that don't need external access (e.g., databases, internal APIs).
+          When true, creates a secure HTTPS endpoint for your application.
+          Default: true
+      ingress-domain:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Domain for your application's public URL. Determines how users will access your app.
+          This will be appended to the branch name.
+      liveness-path:
+        required: false
+        type: string
+        default: ""
+        description: |
+          HTTP path used for Kubernetes liveness probe to check if your application is running.
+          Use for verify deployment if provided.
+          Examples: '/healthz', '/status', '/ping', '/'
+      readiness-path:
+        required: false
+        type: string
+        default: ""
+        description: |
+          HTTP path used for Kubernetes readiness probe to check if your application is ready to serve traffic.
+          Use for verify deployment if provided.
+          Examples: '/ready', '/health', '/status', '/'
+      root-path:
+        required: false
+        type: string
+        default: ""
+        description: |
+          URL path prefix where your application will be accessible. Must match your application's routing configuration.
+          For other frameworks, I don't know, but for FastAPI apps, this must match the 'root_path' parameter in your FastAPI() constructor.
+          Examples: '/api/v1', '/payments', '/auth', '' (for root path)
+          Final URL: https://{domain}{root-path}/your-endpoints
+          Default: ''
+      config-path:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Path to a configuration file that will be made available to your running application.
+          The file will be mount to `CONFIG_PATH` inside your container.
+          Useful for application settings, environment-specific configurations, or documentation.
+          Read more at `utils.get_config`.
+          Examples: '.configs', 'src/apps/worker/.configs.sample', ...
+          Default: 'README.md'
+      config-secret:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Path to encrypted file in repo. If provided, this file will override the config at `config-path`.
+
+          Examples: '.config.enc.yaml'
+      env-file:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Path to the environment file that contains environment variables for your application.
+          This file will be used to set environment variables inside the container.
+          Useful for sensitive information, configuration settings, or runtime parameters.
+          Make sure env-file is in KEY=VALUE format.
+          Examples: '.env.prod'
+      env-secret:
+        required: false
+        type: string
+        default: ""
+        description: |
+          Path to encrypted file in repo
+
+          Examples: '.env.enc.yaml'
+      extra-secret-name:
+        required: false
+        type: string
+        description: |
+          Additional secret will be mouted to `extra-secret-path` in your container.
+      extra-secret-file:
+        required: false
+        type: string
+        description: |
+          Path to the encrypted extra secret file that will be created as a Kubernetes Secret and mounted into your application pod.
+          This allows you to provide additional sensitive data or configuration that your application needs at runtime.
+          Examples: 'secrets/extra-secret.yaml'
+      extra-secret-path:
+        required: false
+        type: string
+        description: |
+          Path where the extra secret will be mounted in the container.
+          Example: './secrets'
+      service-monitor:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Whether to create a ServiceMonitor resource for Prometheus monitoring.
+          When enabled, a ServiceMonitor will be created to scrape metrics from your application.
+          Useful for applications that expose Prometheus metrics endpoints.
+          Default: false
+      prometheus-rule:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Whether to create Prometheus alerting rules for your application.
+          When enabled, a set of default alerting rules will be created based on common metrics.
+          Useful for applications that need monitoring and alerting based on specific conditions.
+          Default: false
+      alertmanager-config:
+        required: false
+        type: boolean
+        default: false
+        description: |
+          Whether to create an Alertmanager configuration for sending alerts.
+          When enabled, an Alertmanager configuration will be created to manage alerting rules.
+          Useful for applications that need to send alerts based on specific conditions.
+          Default: false
+      create-pr:
+        required: false
+        type: boolean
+        default: true
+        description: |
+          Whether to create a pull request to merge the changes into the `master` branch after deployment.
+          Useful for development workflows where you want to review changes before merging.
+          If false, the workflow will not create a PR, but the deployment will still proceed.
+          Ignored if the workflow is triggered on `master` branch.
+          Default: true
+      install-python:
+        required: false
+        type: string
+        default: "3.12"
+        description: |
+          Python version to install.
+          Set to "" or "false" to skip Python installation.
+          Default: "3.12"
+      pr-reviewers:
+        required: false
+        type: string
+        default: "duchuyvp,texcorver"
+        description: |
+          Comma-separated list of GitHub usernames to request review from on the created PR.
+          Default: "duchuyvp,texcorver"
+env:
+  REGISTRY: artifactory-jcr.artifactory-jcr.svc:8081
+  DOCKER_PASSWORD: y9wb3N0Z3
+  DOCKER_USERNAME: admin
+  DOCKER_CLIENT_TIMEOUT: 300
+  COMPOSE_HTTP_TIMEOUT: 300
+
+jobs:
+  extract-branch-info:
+    runs-on: arc-runner-set
+    timeout-minutes: 5
+    outputs:
+      what-they-do: ${{ steps.extract.outputs.what-they-do }}
+      org-name: ${{ steps.extract.outputs.org-name }}
+    steps:
+      - name: Extract what-they-do from branch name
+        id: extract
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Branch name: $BRANCH_NAME"
+          # Extract what-they-do from who/do/what-they-do pattern
+          WHAT_THEY_DO=$(echo "$BRANCH_NAME" | awk -F'/' '{print $NF}')
+          echo "Extracted what-they-do: $WHAT_THEY_DO"
+          echo "what-they-do=$WHAT_THEY_DO" >> $GITHUB_OUTPUT
+
+          # Set org-name to input or default to repository owner
+          ORG_NAME="${{ inputs.org-name }}"
+          if [ -z "$ORG_NAME" ]; then
+            ORG_NAME="${{ github.repository_owner }}"
+          fi
+          echo "Organization name: $ORG_NAME"
+          echo "org-name=$ORG_NAME" >> $GITHUB_OUTPUT
+
+  run-test:
+    runs-on: arc-runner-set
+    needs: extract-branch-info
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check pre-installed tools
+        id: check-tools
+        run: |
+          if command -v python &> /dev/null; then echo "python-installed=true" >> $GITHUB_OUTPUT; fi
+          if command -v poetry &> /dev/null; then echo "poetry-installed=true" >> $GITHUB_OUTPUT; fi
+          if command -v uv &> /dev/null; then echo "uv-installed=true" >> $GITHUB_OUTPUT; fi
+          if command -v make &> /dev/null; then echo "make-installed=true" >> $GITHUB_OUTPUT; fi
+
+      - name: Setup Make
+        if: steps.check-tools.outputs.make-installed != 'true'
+        run: sudo apt-get update && sudo apt-get install -y make
+
+      - name: Set up python
+        if: inputs.install-python != '' && inputs.install-python != 'false' && steps.check-tools.outputs.python-installed != 'true'
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.install-python }}
+
+      - name: Install Poetry
+        if: inputs.install-python != '' && inputs.install-python != 'false' && steps.check-tools.outputs.poetry-installed != 'true'
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: false
+      # - name: Fix SSH permissions for Git dependencies
+      #   run: |
+      #     # Fix SSH directory and file permissions
+      #     if [ -d ~/.ssh ]; then
+      #       chmod 700 ~/.ssh
+      #       chmod 600 ~/.ssh/id_ed25519 2>/dev/null || true
+      #       chmod 644 ~/.ssh/id_ed25519.pub 2>/dev/null || true
+      #       chmod 644 ~/.ssh/known_hosts 2>/dev/null || true
+      #       echo "SSH permissions fixed"
+
+      #       # Test SSH connection to GitHub
+      #       echo "Testing SSH connection to GitHub..."
+      #       ssh -T git@github.com || echo "SSH connection test completed (exit code $?)"
+      #     else
+      #       echo "SSH directory not found, skipping SSH setup"
+      #     fi
+      - name: Install the latest version of uv
+        if: inputs.install-python != '' && inputs.install-python != 'false' && steps.check-tools.outputs.uv-installed != 'true'
+        uses: astral-sh/setup-uv@v7
+
+      - name: Run tests
+        run: |
+          echo "Running tests..."
+          echo "Using test command: ${{ inputs.test-command }}"
+          if ! ${{ inputs.test-command }}; then
+            echo "Tests failed, aborting workflow"
+            exit 1
+          fi
+          echo "Tests completed successfully"
+
+  build-image:
+    runs-on: arc-runner-set
+    needs: [extract-branch-info, run-test]
+    timeout-minutes: 60
+    env:
+      IMAGE_NAME: ${{ needs.extract-branch-info.outputs.org-name }}-${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."${{ env.REGISTRY }}"]
+              insecure = true
+              http = true
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.docker-build-context }}
+          file: ${{ inputs.docker-build-file }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/docker/${{ env.IMAGE_NAME }}:${{ inputs.tag }}
+          ssh: default=/home/runner/.ssh/id_ed25519
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/cache/cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/cache/cache,mode=max
+
+  deploy-on-dev:
+    runs-on: arc-runner-set
+    needs: [extract-branch-info, build-image]
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+    env:
+      IMAGE_NAME: ${{ needs.extract-branch-info.outputs.org-name }}-${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}
+      INGRESS_HOST: ${{ needs.extract-branch-info.outputs.what-they-do }}.${{ inputs.ingress-domain }}
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        id: install
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Clone DeployConfigRepo
+        run: |
+          git clone git@github.com:tex-corver/DeployConfigRepo.git ../DeployConfigRepo
+          echo "../DeployConfigRepo"
+
+      - name: Create directory structure
+        run: |
+          mkdir -p ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}
+          echo    "../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }} is available"
+          mkdir -p ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}
+          echo    "../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }} is available"
+
+      - name: Create namespace
+        run: |
+          cat > ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/namespace.yaml <<EOF
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: ${{ needs.extract-branch-info.outputs.org-name }}
+          EOF
+          echo "Namespace manifest written to ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/namespace.yaml"
+
+      - name: Update secret config
+        id: update-secret
+        run: |
+          if [ -n "${{ inputs.config-secret }}" ]; then
+            cp ${{ inputs.config-secret }} ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml
+            echo   "Write config secret at ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml"
+          else
+            kubectl create secret generic ${{ inputs.project-name }}-config \
+              --from-file '${{ inputs.config-path }}' \
+              -n ${{ needs.extract-branch-info.outputs.org-name }} --dry-run=client -o yaml > \
+              ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml
+          fi
+          echo "Secret manifest written to ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml"
+          config_name=$(kubectl create -f  ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/config.yaml --dry-run=client -o jsonpath='{.metadata.name}')
+          echo "CONFIG_NAME=$config_name" >> "$GITHUB_OUTPUT"
+      - name: Update environment variables
+        id: update-env
+        run: |
+          if [ -n "${{ inputs.env-secret }}" ]; then
+            cp ${{ inputs.env-secret }} ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml
+            echo   "Write env secret at ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml"
+          else
+            kubectl create secret generic ${{ inputs.project-name }}-env \
+              --from-env-file='${{ inputs.env-file }}' \
+              -n ${{ needs.extract-branch-info.outputs.org-name }} --dry-run=client -o yaml > \
+              ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml
+          fi
+          echo "Environment variables manifest written to ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml"
+          env_name=$(kubectl create -f  ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/env.yaml --dry-run=client -o jsonpath='{.metadata.name}')
+          echo "ENV_NAME=$env_name" >> "$GITHUB_OUTPUT"
+      - name: Add extra secret if provided
+        id: add-extra-secret
+        run: |
+          if [ -n "${{ inputs.extra-secret-file }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+            cp ${{ inputs.extra-secret-file }} ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/extra-secret.yaml
+            echo "Extra secret manifest written to ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/extra-secret.yaml"
+            extra_secret_name=$(kubectl create -f  ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/extra-secret.yaml --dry-run=client -o jsonpath='{.metadata.name}')
+          elif [ -n "${{ inputs.extra-secret-name }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+            echo "Using existing secret name: ${{ inputs.extra-secret-name }}"
+            extra_secret_name="${{ inputs.extra-secret-name }}"
+          else
+            extra_secret_name=""
+          fi
+          echo "EXTRA_SECRET_NAME=$extra_secret_name" >> "$GITHUB_OUTPUT"
+      - name: Update Application
+        run: |
+          file_path="../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/application.yaml"
+          cat > "$file_path" <<'EOF'
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: ${{ env.IMAGE_NAME }}
+            namespace: argocd
+            finalizers:
+              - resources-finalizer.argocd.argoproj.io
+            labels:
+              name: ${{ env.IMAGE_NAME }}
+          spec:
+            project: default
+            sources:
+              - repoURL: https://github.com/tex-corver/generic.git
+                targetRevision: HEAD
+                path: .
+                helm:
+                  releaseName: ${{ env.IMAGE_NAME }}
+                  valuesObject:
+                    nameOverride: ${{ inputs.project-name }}
+                    configPath: /etc/config
+                    configSecret: ${{ steps.update-secret.outputs.CONFIG_NAME }}
+                    image:
+                      imageOverride: jcr.urieljsc.com/docker/${{ env.IMAGE_NAME }}:${{ inputs.tag }}
+                      pullPolicy: Always
+                    service:
+                      port: ${{ inputs.port }}
+                    imagePullSecrets:
+                      - name: jcr-image-pull-secret
+                    serviceMonitor:
+                      enabled: ${{ inputs.service-monitor }}
+                      jobLabel: ${{ env.IMAGE_NAME }}
+                      metricRelabelings:
+                        - targetLabel: application_name
+                          replacement: ${{ env.IMAGE_NAME }}
+                    prometheusRule:
+                      enabled: ${{ inputs.prometheus-rule }}
+                      groups:
+                      - name: ${{ env.IMAGE_NAME }}
+                        rules: []
+                    alertmanagerConfig:
+                      enabled: ${{ inputs.alertmanager-config }}
+                      route:
+                        receiver: "null"
+                        groupBy: ["namespace", "alertname"]
+                      receivers:
+                        - name: "null"
+                    ingress:
+                      enabled: ${{ inputs.ingress }}
+                      className: nginx
+                      annotations:
+                        cert-manager.io/cluster-issuer: letsencrypt-prod
+                        ${{ inputs.root-path != '' && 'nginx.ingress.kubernetes.io/rewrite-target: /$2' || null }}
+                      hosts:
+                        - host: ${{ env.INGRESS_HOST }}
+                          paths:
+                            - path: ${{ inputs.root-path != '' && format('{0}(/|$)(.*)', inputs.root-path) || '/' }}
+                              pathType: ${{ inputs.root-path != '' && 'ImplementationSpecific' || 'Prefix' }}
+                      tls:
+                        - secretName: ${{ env.INGRESS_HOST }}-tls
+                          hosts:
+                            - ${{ env.INGRESS_HOST }}
+                    extraEnvFrom:
+                      - secretRef:
+                          name: ${{ steps.update-env.outputs.ENV_NAME }}
+                    livenessProbe:
+                      enabled: ${{ inputs.liveness-path != '' && 'true' || 'false' }}
+                      httpGet:
+                        path: ${{ inputs.liveness-path }}
+                        port: ${{ inputs.port }}
+                    readinessProbe:
+                      enabled: ${{ inputs.readiness-path != '' && 'true' || 'false' }}
+                      httpGet:
+                        path: ${{ inputs.readiness-path }}
+                        port: ${{ inputs.port }}
+          EOF
+          if [ -n "${{ steps.add-extra-secret.outputs.EXTRA_SECRET_NAME }}" ] && [ -n "${{ inputs.extra-secret-path }}" ]; then
+            cat >> "$file_path" <<'EOF'
+                    extraVolumes:
+                      - name: extra-secret-volume
+                        secret:
+                          secretName: ${{ steps.add-extra-secret.outputs.EXTRA_SECRET_NAME }}
+                    extraVolumeMounts:
+                      - name: extra-secret-volume
+                        mountPath: ${{ inputs.extra-secret-path }}
+                        readOnly: true
+          EOF
+          fi
+          cat >> "$file_path" <<'EOF'
+            destination:
+              name: in-cluster
+              namespace: ${{ needs.extract-branch-info.outputs.org-name }}
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+                allowEmpty: false
+              syncOptions:
+                - CreateNamespace=true
+                - PrunePropagationPolicy=foreground
+                - PruneLast=true
+                - ApplyOutOfSyncOnly=true
+              retry:
+                limit: 5
+                backoff:
+                  duration: 5s
+                  factor: 2
+                  maxDuration: 3m
+            revisionHistoryLimit: 3
+          EOF
+          echo "ArgoCD Application manifest written to ../DeployConfigRepo/${{ needs.extract-branch-info.outputs.org-name }}/${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}/application.yaml"
+
+      - name: Commit and push manifest files
+        run: |
+          cd ../DeployConfigRepo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Deploy ${{ env.IMAGE_NAME }} - Update manifests for ${{ inputs.project-name }}" || echo "No changes to commit"
+          git push origin master
+          echo "Manifest files committed and pushed successfully"
+      - name: Sync application
+        timeout-minutes: 3
+        run: |
+          cat > /tmp/patch.yaml <<'EOF'
+          operation:
+            initiatedBy:
+              username: github-actions
+            sync:
+              prune: true
+              syncOptions:
+                - CreateNamespace=true
+                - PrunePropagationPolicy=foreground
+                - PruneLast=true
+                - ApplyOutOfSyncOnly=true
+          EOF
+          kubectl patch -n argocd app applications --patch-file /tmp/patch.yaml --type merge
+          sleep 2
+
+          kubectl patch -n argocd app ${{ env.IMAGE_NAME }} --patch-file /tmp/patch.yaml --type merge
+          sleep 2
+          until [[ $(kubectl get application ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
+            echo "Waiting for applications to sync..."
+            echo "Current status: $(kubectl get application ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}')"
+            sleep 2
+          done
+  verify-deployment:
+    runs-on: arc-runner-set
+    needs: [extract-branch-info, deploy-on-dev]
+    timeout-minutes: 60
+    outputs:
+      link: ${{ steps.get-output.outputs.link }}
+    env:
+      IMAGE_NAME: ${{ needs.extract-branch-info.outputs.org-name }}-${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}
+      INGRESS_HOST: ${{ needs.extract-branch-info.outputs.what-they-do }}.${{ inputs.ingress-domain }}
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        id: install
+
+      - name: Restart deployment
+        run: |
+          kubectl rollout restart deployment/${{ env.IMAGE_NAME }} -n ${{ needs.extract-branch-info.outputs.org-name }}
+          echo "Deployment restarted successfully"
+
+      - name: Wait for deployment readiness
+        timeout-minutes: 5
+        run: |
+          kubectl wait --for=condition=available deployment/${{ env.IMAGE_NAME }} -n ${{ needs.extract-branch-info.outputs.org-name }}
+          kubectl rollout status deployment/${{ env.IMAGE_NAME }} -n ${{ needs.extract-branch-info.outputs.org-name }}
+          echo "Deployment verification completed successfully"
+      - name: Verify deployment
+        timeout-minutes: 5
+        if: inputs.liveness-path != '' || inputs.readiness-path != ''
+        run: |
+          echo "Running a simple request to verify the deployment..."
+          while ! curl -s --head ${{ env.IMAGE_NAME }}.${{ needs.extract-branch-info.outputs.org-name }}.svc:${{ inputs.port }}; do
+            echo "Waiting for deployment to be ready..."
+            sleep 5
+          done
+          echo "Deployment is ready, verifying..."
+      - id: get-output
+        run: |
+          echo "link=https://${{ env.INGRESS_HOST }}${{ inputs.root-path }}" >> "$GITHUB_OUTPUT"
+
+  create-pr-to-master:
+    runs-on: ubuntu-latest
+    needs: [extract-branch-info, build-image]
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' && inputs.create-pr && false
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      IMAGE_NAME: ${{ needs.extract-branch-info.outputs.org-name }}-${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN || github.token }}
+
+      - name: Create Pull Request
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+
+            // Get the correct head branch name from the push event
+            const head = '${{ github.ref_name }}';
+            const base = 'master';
+
+            console.log(`Event: ${context.eventName}`);
+            console.log(`Attempting to create PR from ${head} to ${base}`);
+            console.log(`Repository: ${owner}/${repo}`);
+            console.log(`Full ref: ${{ github.ref }}`);
+
+            // Validate branch names
+            if (head === base) {
+              console.log(`Cannot create PR: head and base branches are the same (${head})`);
+              return;
+            }
+
+            // Additional validation for merge refs or invalid branch names
+            if (head.includes('/merge') || head.includes('/head')) {
+              console.log(`Invalid head branch name detected: ${head}. This appears to be a merge reference, not a branch name.`);
+              console.log(`This job should only run on push events to feature branches.`);
+              return;
+            }
+
+            try {
+              // Check if PR already exists
+              const existingPRs = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${head}`,
+                base,
+                state: 'open'
+              });
+
+              if (existingPRs.data.length > 0) {
+                console.log(`Pull request already exists: ${existingPRs.data[0].html_url}`);
+                const existingPR = existingPRs.data[0];
+                // Create a comment on the existing PR
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: existingPR.number,
+                  body: `🚀 **New Deployment Completed**\n\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\n\nThis PR has been updated with the latest changes.`
+                });
+                return;
+              }
+
+              // Create the pull request
+              const pr = await github.rest.pulls.create({
+                owner,
+                repo,
+                title: `Deploy ${{ env.IMAGE_NAME }} to production`,
+                head,
+                base,
+                body: `## 🚀 Deployment Summary
+
+              - **Project**: ${{ env.IMAGE_NAME }}
+              - **Branch**: ${{ github.ref_name }}
+              - **Commit**: ${{ github.sha }}
+
+              ## ✅ Verification Status
+              - ✅ Tests passed
+              - ✅ Image built and pushed successfully
+
+              ## 📋 Changes
+              This PR contains the latest changes from the \`${head}\` branch and is ready for production deployment.
+
+              **Auto-generated by GitHub Actions** 🤖`
+              });
+
+              console.log(`Pull request created successfully: ${pr.data.html_url}`);
+
+                            // Try to assign reviewers (non-blocking)
+              try {
+                const reviewersList = '${{ inputs.pr-reviewers }}'.split(',').map(r => r.trim()).filter(r => r);
+                if (reviewersList.length > 0) {
+                  await github.rest.pulls.requestReviewers({
+                    owner,
+                    repo,
+                    pull_number: pr.data.number,
+                    reviewers: reviewersList
+                  });
+                  console.log('Reviewers assigned successfully');
+                }
+              } catch (reviewerError) {
+
+            } catch (error) {
+              console.error(`Error creating PR: ${error.message}`);
+              console.error(`Error details:`, error);
+
+              // Provide helpful debugging information
+              if (error.status === 422) {
+                console.error('422 Error - Possible causes:');
+                console.error('1. Branch protection rules are blocking PR creation');
+                console.error('2. Head and base branches are the same');
+                console.error('3. No commits between head and base branches');
+                console.error('4. Invalid branch names or references');
+                console.error('5. Insufficient permissions');
+              }
+
+              throw error; // Re-throw to fail the workflow step
+            }
+
+  notify-on-failure:
+    runs-on: ubuntu-latest
+    needs: [run-test, build-image, deploy-on-dev, verify-deployment]
+    if: ${{ always() && failure() && contains(github.repository, 'genbook') }}
+    steps:
+      - name: Send Discord Notification
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: https://discord.com/api/webhooks/1448302680433758348/Edz-vpK24ViufZka7ORAw-EYDPWrN17eRzHvIryYRMFmOWxvrMkW9jhopD0qGWioi2S0
+        with:
+          args: |
+            🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**!
+
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+            **Author:** ${{ github.actor }}
+            **Event:** ${{ github.event_name }}
+            **Run:** #${{ github.run_number }}
+            **Job Status:**
+            - run-test: ${{ needs.run-test.result }}
+            - build-image: ${{ needs.build-image.result }}
+            - deploy-on-dev: ${{ needs.deploy-on-dev.result }}
+            - verify-deployment: ${{ needs.verify-deployment.result }}
+
+            **Triggered by:** ${{ github.triggering_actor }}
+
+            🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            ${{ github.event_name == 'pull_request' && format('🔀 [View Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
