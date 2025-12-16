@@ -239,16 +239,17 @@ jobs:
         run: |
           BRANCH_NAME="${{ github.ref_name }}"
           echo "Branch name: $BRANCH_NAME"
-          # Extract what-they-do from who/do/what-they-do pattern
-          WHAT_THEY_DO=$(echo "$BRANCH_NAME" | awk -F'/' '{print $NF}')
+          # Extract what-they-do from who/do/what-they-do pattern and convert to lowercase
+          WHAT_THEY_DO=$(echo "$BRANCH_NAME" | awk -F'/' '{print $NF}' | tr '[:upper:]' '[:lower:]')
           echo "Extracted what-they-do: $WHAT_THEY_DO"
           echo "what-they-do=$WHAT_THEY_DO" >> $GITHUB_OUTPUT
 
-          # Set org-name to input or default to repository owner
+          # Set org-name to input or default to repository owner and convert to lowercase
           ORG_NAME="${{ inputs.org-name }}"
           if [ -z "$ORG_NAME" ]; then
             ORG_NAME="${{ github.repository_owner }}"
           fi
+          ORG_NAME=$(echo "$ORG_NAME" | tr '[:upper:]' '[:lower:]')
           echo "Organization name: $ORG_NAME"
           echo "org-name=$ORG_NAME" >> $GITHUB_OUTPUT
 
