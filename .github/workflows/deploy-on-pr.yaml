@@ -361,7 +361,6 @@ jobs:
     runs-on: arc-runner-set
     needs: [extract-branch-info, build-image]
     timeout-minutes: 60
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
     env:
       IMAGE_NAME: ${{ needs.extract-branch-info.outputs.org-name }}-${{ inputs.project-name }}-${{ needs.extract-branch-info.outputs.what-they-do }}
       INGRESS_HOST: ${{ needs.extract-branch-info.outputs.what-they-do }}.${{ inputs.ingress-domain }}
