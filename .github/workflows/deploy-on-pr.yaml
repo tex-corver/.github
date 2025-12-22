@@ -780,3 +780,27 @@ jobs:
 
             🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             ${{ github.event_name == 'pull_request' && format('🔀 [View Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
+
+  notify-on-success:
+    runs-on: ubuntu-latest
+    needs: [run-test, build-image, deploy-on-dev, verify-deployment]
+    if: ${{ always() && !failure() && contains(github.repository, 'genbook') }}
+    steps:
+      - name: Send Discord Notification
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: https://discord.com/api/webhooks/1448302680433758348/Edz-vpK24ViufZka7ORAw-EYDPWrN17eRzHvIryYRMFmOWxvrMkW9jhopD0qGWioi2S0
+        with:
+          args: |
+            🚨 The workflow **${{ github.workflow }}** success in repo **${{ github.repository }}**!
+
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+            **Author:** ${{ github.actor }}
+            **Event:** ${{ github.event_name }}
+            **Run:** #${{ github.run_number }}
+
+            **Triggered by:** ${{ github.triggering_actor }}
+
+            🔗 [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            ${{ github.event_name == 'pull_request' && format('🔀 [View Pull Request]({0}/{1}/pull/{2})', github.server_url, github.repository, github.event.pull_request.number) || '' }}
