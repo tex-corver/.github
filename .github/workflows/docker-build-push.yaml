@@ -741,7 +741,7 @@ jobs:
           DISCORD_WEBHOOK: https://discord.com/api/webhooks/1448302680433758348/Edz-vpK24ViufZka7ORAw-EYDPWrN17eRzHvIryYRMFmOWxvrMkW9jhopD0qGWioi2S0
         with:
           args: |
-            🚨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**!
+            🧨 The workflow **${{ github.workflow }}** failed in repo **${{ github.repository }}**!
 
             **Repository:** ${{ github.repository }}
             **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
@@ -769,7 +769,7 @@ jobs:
           DISCORD_WEBHOOK: https://discord.com/api/webhooks/1448302680433758348/Edz-vpK24ViufZka7ORAw-EYDPWrN17eRzHvIryYRMFmOWxvrMkW9jhopD0qGWioi2S0
         with:
           args: |
-            🚨 The workflow **${{ github.workflow }}** success in repo **${{ github.repository }}**!
+            🧩 The workflow **${{ github.workflow }}** success in repo **${{ github.repository }}**!
 
             **Repository:** ${{ github.repository }}
             **Branch:** ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
