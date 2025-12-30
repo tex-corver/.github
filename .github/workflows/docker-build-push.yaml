@@ -454,6 +454,13 @@ jobs:
                       port: ${{ inputs.port }}
                     imagePullSecrets:
                       - name: jcr-image-pull-secret
+                    resources:
+                      limits:
+                        cpu: "2"
+                        memory: "6Gi"
+                      requests:
+                        cpu: "100m"
+                        memory: "128Mi"
                     serviceMonitor:
                       enabled: ${{ inputs.service-monitor }}
                       jobLabel: ${{ env.IMAGE_NAME }}
