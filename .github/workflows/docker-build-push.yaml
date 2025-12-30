@@ -76,6 +76,16 @@ on:
           Used for routing traffic to your application and health checks.
           Common ports: 3000 (Node.js), 8000 (Python/Django), 8080 (Spring Boot), 80 (Nginx)
           Default: 8000
+      replica:
+        required: false
+        type: number
+        default: 1
+        description: |
+          Number of pod replicas to run for your application in the Kubernetes cluster.
+          More replicas improve availability and load balancing but consume more resources.
+          Set based on expected traffic, resource limits, and fault tolerance needs.
+          Examples: 1 (single instance), 3 (high availability), 5+ (heavy load)
+          Default: 1
       ingress:
         required: false
         type: boolean
@@ -444,6 +454,7 @@ jobs:
                 helm:
                   releaseName: ${{ env.IMAGE_NAME }}
                   valuesObject:
+                    replicaCount: ${{ inputs.replica }}
                     nameOverride: ${{ inputs.project-name }}
                     configPath: /etc/config
                     configSecret: ${{ steps.update-secret.outputs.CONFIG_NAME }}
