@@ -42,6 +42,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN curl -sSL https://install.python-poetry.org | sudo POETRY_HOME=/opt/poetry python3.12 - && \
     sudo ln -s /opt/poetry/bin/poetry /usr/local/bin/poetry
 
-# 5. (Optional) Pre-install common Python tools to speed up workflows further
+# (Optional) Pre-install common Python tools to speed up workflows further
 # This populates the cache
 # RUN uv pip install --system ruff pytest black
