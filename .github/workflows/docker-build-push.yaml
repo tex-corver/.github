@@ -584,12 +584,12 @@ jobs:
           kubectl patch -n argocd applications.argoproj.io applications --patch-file /tmp/patch.yaml --type merge
           sleep 2
 
-          timeout 60s bash -c "until kubectl get app -n argocd ${{ env.IMAGE_NAME }} &> /dev/null; do echo 'Waiting for app...'; sleep 2; done"
+          timeout 60s bash -c "until kubectl get applications.argoproj.io -n argocd ${{ env.IMAGE_NAME }} &> /dev/null; do echo 'Waiting for app...'; sleep 2; done"
           kubectl patch -n argocd applications.argoproj.io ${{ env.IMAGE_NAME }} --patch-file /tmp/patch.yaml --type merge
           sleep 2
-          until [[ $(kubectl get application ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
+          until [[ $(kubectl get applications.argoproj.io ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}') == "Synced" ]]; do
             echo "Waiting for applications to sync..."
-            echo "Current status: $(kubectl get application ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}')"
+            echo "Current status: $(kubectl get applications.argoproj.io ${{ env.IMAGE_NAME }} -n argocd -o jsonpath='{.status.sync.status}')"
             sleep 2
           done
   verify-deployment:
